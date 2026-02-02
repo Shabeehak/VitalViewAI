@@ -1,0 +1,347 @@
+# Kubernetes Deployment for VitalViewAI
+# Task 5 Deliverable: Production-Grade Kubernetes Manifests
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vitalview
+
+---
+# ConfigMap for Application Config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitalview-config
+  namespace: vitalview
+data:
+  API_PORT: "8000"
+  ML_SERVER_PORT: "8001"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+
+---
+# Secret for Sensitive Data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vitalview-secrets
+  namespace: vitalview
+type: Opaque
+stringData:
+  DB_PASSWORD: "change_me_in_production"
+  REDIS_PASSWORD: "change_me_in_production"
+  ENCRYPTION_KEY: "generate_with_fernet"
+  PATIENT_ID_SALT: "generate_secure_salt"
+
+---
+# Persistent Volume Claim for Models
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vitalview-models-pvc
+  namespace: vitalview
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Persistent Volume Claim for Logs
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vitalview-logs-pvc
+  namespace: vitalview
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+# Deployment: Streaming API Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vitalview-api
+  namespace: vitalview
+  labels:
+    app: vitalview-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vitalview-api
+  template:
+    metadata:
+      labels:
+        app: vitalview-api
+    spec:
+      containers:
+      - name: api-server
+        image: YOUR_REGISTRY/vitalview-api:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: vitalview-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: vitalview-config
+              key: LOG_LEVEL
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: vitalview-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: vitalview-secrets
+              key: REDIS_PASSWORD
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: vitalview-secrets
+              key: ENCRYPTION_KEY
+        - name: PATIENT_ID_SALT
+          valueFrom:
+            secretKeyRef:
+              name: vitalview-secrets
+              key: PATIENT_ID_SALT
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: models
+          mountPath: /app/models
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: vitalview-logs-pvc
+      - name: models
+        persistentVolumeClaim:
+          claimName: vitalview-models-pvc
+
+---
+# Service: API Server
+apiVersion: v1
+kind: Service
+metadata:
+  name: vitalview-api-service
+  namespace: vitalview
+spec:
+  type: LoadBalancer
+  selector:
+    app: vitalview-api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+    name: http
+
+---
+# Deployment: ML Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vitalview-ml
+  namespace: vitalview
+  labels:
+    app: vitalview-ml
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vitalview-ml
+  template:
+    metadata:
+      labels:
+        app: vitalview-ml
+    spec:
+      containers:
+      - name: ml-server
+        image: YOUR_REGISTRY/vitalview-ml:latest
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: MODEL_TYPE
+          value: "xgboost"
+        - name: MODEL_PATH
+          value: "/app/models/xgboost_model.pkl"
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: models
+          mountPath: /app/models
+          readOnly: true
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: vitalview-logs-pvc
+      - name: models
+        persistentVolumeClaim:
+          claimName: vitalview-models-pvc
+
+---
+# Service: ML Server
+apiVersion: v1
+kind: Service
+metadata:
+  name: vitalview-ml-service
+  namespace: vitalview
+spec:
+  type: ClusterIP
+  selector:
+    app: vitalview-ml
+  ports:
+  - protocol: TCP
+    port: 8001
+    targetPort: 8001
+    name: http
+
+---
+# HorizontalPodAutoscaler: API Server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vitalview-api-hpa
+  namespace: vitalview
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vitalview-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# HorizontalPodAutoscaler: ML Server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vitalview-ml-hpa
+  namespace: vitalview
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vitalview-ml
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+
+---
+# Ingress: External Access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vitalview-ingress
+  namespace: vitalview
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+spec:
+  tls:
+  - hosts:
+    - api.vitalview.ai
+    - ml.vitalview.ai
+    secretName: vitalview-tls
+  rules:
+  - host: api.vitalview.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vitalview-api-service
+            port:
+              number: 80
+  - host: ml.vitalview.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vitalview-ml-service
+            port:
+              number: 8001

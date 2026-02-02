@@ -1,0 +1,229 @@
+#config/config.yaml
+# Master Configuration File for Health Monitoring System
+
+# Project Metadata
+project:
+  name: "vital_view_ai"
+  version: "1.0.0"
+  description: "AI-powered health deterioration prediction"
+
+# Data Configuration
+data:
+  # Time window for prediction
+  prediction_window_hours: 48
+  
+  # Wearable data sampling
+  wearable_frequency_minutes: 5  # How often wearables report
+  
+  # Features to extract from wearables
+  wearable_features:
+    - heart_rate
+    - bp_systolic
+    - bp_diastolic
+    - spo2  # Blood oxygen
+    - respiratory_rate         
+    - temperature              
+  
+  # Lab test features
+  lab_features:
+    - glucose_fasting
+    - glucose_random
+    - creatinine  # Kidney function
+    - hemoglobin
+    - wbc
+    - platelets
+    - cholesterol_total
+    - cholesterol_ldl
+    - cholesterol_hdl
+    - triglycerides
+  
+  # Missing data handling
+  imputation:
+    method: "forward_fill"  # Options: forward_fill, mean, median, interpolate
+    max_gap_hours: 6  # Maximum gap to fill
+  
+  # Signal smoothing
+  smoothing:
+    enabled: true
+    method: "kalman"  # Options: kalman, moving_average, savgol
+    window_size: 5
+
+# Feature Engineering
+features:
+  # Rolling statistics windows (in hours)
+  rolling_windows: [1, 6, 12, 24]
+  
+  # Statistics to compute
+  statistics:
+    - mean
+    - std
+    - min
+    - max
+    - slope  # Trend direction
+  
+  # Interaction features
+  interactions:
+    - ["heart_rate", "bp_systolic"]
+    - ["glucose_random", "heart_rate"]
+    - ["spo2", "heart_rate"]
+
+# Model Configuration
+model:
+  # Model type: 'xgboost', 'lightgbm', 'lstm', 'ensemble'
+  type: "xgboost"
+  
+  # XGBoost hyperparameters
+  xgboost:
+    n_estimators: 300
+    max_depth: 6
+    learning_rate: 0.01
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 3
+    gamma: 0.1
+    objective: "binary:logistic"
+    eval_metric: "aucpr"  # PR-AUC for imbalanced data
+    scale_pos_weight: 30 
+    random_state: 42
+  
+  # LSTM hyperparameters (if using)
+  lstm:
+    hidden_size: 64
+    num_layers: 2
+    dropout: 0.3
+    sequence_length: 24  # Hours of history
+    batch_size: 32
+    epochs: 50
+    learning_rate: 0.001
+
+# Class Imbalance Handling
+imbalance:
+  method: "smote"  # Options: smote, class_weight, undersample
+  sampling_strategy: 0.5  # Ratio of minority to majority class
+  k_neighbors: 5
+  
+  # Class weights (if using class_weight method)
+  class_weights:
+    0: 1  # No deterioration
+    1: 30  # Deterioration (penalize misclassification more)
+
+# Training Configuration
+training:
+  test_size: 0.2
+  validation_size: 0.2
+  random_state: 42
+  
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 10
+    metric: "pr_auc"
+  
+  # Cross-validation
+  cv_folds: 5
+
+# Evaluation Metrics
+evaluation:
+  primary_metric: "pr_auc"  # Most important for imbalanced data
+  
+  # Thresholds to test
+  thresholds: [0.3, 0.4, 0.5, 0.6, 0.7]
+  
+  # Minimum acceptable performance
+  min_recall: 0.8  # Don't miss deterioration events
+  min_precision: 0.3  # Acceptable false alarm rate
+
+# Privacy & Security Configuration
+privacy:
+  # Encryption
+  encryption:
+    enabled: true
+    algorithm: "AES-256"
+    key_rotation_days: 90
+  
+  # Anonymization
+  anonymization:
+    hash_patient_ids: true
+    hash_algorithm: "SHA-256"
+    remove_direct_identifiers: true
+  
+  # Access control
+  access_control:
+    enabled: true
+    roles:
+      - data_scientist
+      - clinician
+      - admin
+  
+  # Audit logging
+  audit_logging:
+    enabled: true
+    log_data_access: true
+    log_predictions: true
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+  
+  # Prediction settings
+  prediction:
+    batch_size: 100
+    timeout_seconds: 30
+
+# Deployment Configuration
+deployment:
+  # Docker
+  docker:
+    base_image: "python:3.9-slim"
+    port: 8000
+  
+  # Kubernetes
+  kubernetes:
+    replicas: 3
+    cpu_request: "500m"
+    memory_request: "1Gi"
+    cpu_limit: "2000m"
+    memory_limit: "4Gi"
+  
+  # Model serving
+  serving:
+    framework: "mlflow"  # Options: mlflow, tensorflow_serving, torchserve
+    model_version: "latest"
+
+# Monitoring & Retraining
+monitoring:
+  # Data drift detection
+  drift_detection:
+    enabled: true
+    check_frequency_hours: 24
+    threshold: 0.1
+  
+  # Performance monitoring
+  performance_monitoring:
+    enabled: true
+    alert_on_degradation: true
+    min_performance: 0.7  # Alert if PR-AUC drops below this
+  
+  # Automatic retraining
+  retraining:
+    enabled: true
+    trigger: "drift_detected"  # Options: drift_detected, scheduled, performance_drop
+    schedule_days: 30  # If using scheduled
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/health_monitoring.log"
+  
+  # MLflow tracking
+  mlflow:
+    enabled: true
+    tracking_uri: "mlruns"
+    experiment_name: "health_monitoring"

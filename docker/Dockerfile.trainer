@@ -1,0 +1,55 @@
+# docker/Dockerfile.trainer
+# Model Retraining Service for VitalViewAI
+# Automatically retrains models on schedule or trigger
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies + cron
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    cron \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY train_models.py .
+COPY generate_working_data.py .
+COPY logging_config.py .
+COPY privacy_config.yaml .
+COPY config/config.yaml config/
+COPY src/ src/
+
+# Copy existing models (for versioning)
+COPY models/ models/
+
+# Create necessary directories
+RUN mkdir -p /app/data/raw /app/data/processed /app/logs
+
+# Create training script
+RUN echo '#!/bin/bash\n\
+echo "Starting model retraining at $(date)"\n\
+cd /app\n\
+python generate_working_data.py\n\
+python train_models.py\n\
+echo "Model retraining completed at $(date)"\n\
+' > /app/retrain.sh && chmod +x /app/retrain.sh
+
+# Setup cron job (default: weekly on Sunday at 2 AM)
+RUN echo "0 2 * * 0 /app/retrain.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/model-retrain
+RUN chmod 0644 /etc/cron.d/model-retrain
+RUN crontab /etc/cron.d/model-retrain
+RUN touch /var/log/cron.log
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Run cron in foreground + tail logs
+CMD cron && tail -f /var/log/cron.log

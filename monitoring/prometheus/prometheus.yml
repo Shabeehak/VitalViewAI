@@ -1,0 +1,181 @@
+# monitoring/prometheus/prometheus.yml
+# Prometheus Configuration for VitalViewAI
+# Task 5 Deliverable: Monitoring & Alerting
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'vitalview-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Streaming API Server
+  - job_name: 'vitalview-api'
+    static_configs:
+      - targets: ['api-server:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # ML Server
+  - job_name: 'vitalview-ml'
+    static_configs:
+      - targets: ['ml-server:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Node Exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Docker Metrics
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+---
+# monitoring/prometheus/alerts.yml
+# Alert Rules for VitalViewAI
+
+groups:
+  - name: vitalview_alerts
+    interval: 30s
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.job }}"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.container }}"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for {{ $labels.container }}"
+
+      # Model Performance Degradation
+      - alert: ModelPerformanceDegradation
+        expr: |
+          ml_model_pr_auc < 0.85
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Model performance has degraded"
+          description: "Model PR-AUC has dropped to {{ $value }} (threshold: 0.85)"
+
+      # High Prediction Latency
+      - alert: HighPredictionLatency
+        expr: |
+          histogram_quantile(0.95, rate(ml_prediction_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High prediction latency"
+          description: "95th percentile prediction time is {{ $value }}s"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: |
+          rate(database_connection_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection issues"
+          description: "Database connection error rate is {{ $value }}"
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space running low"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining on {{ $labels.device }}"
+
+      # Too Many Alerts Generated
+      - alert: HighAlertRate
+        expr: |
+          rate(vitalview_alerts_generated_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of patient alerts"
+          description: "Generating {{ $value }} alerts per second - possible system issue"

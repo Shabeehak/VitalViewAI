@@ -1,0 +1,30 @@
+{
+  "evaluation_id": "eval_20260125_202047",
+  "model_type": "xgboost",
+  "evaluation_date": "2026-01-25T20:21:16.241018",
+  "metrics": {
+    "confusion_matrix": {
+      "TP": 28803,
+      "TN": 95206,
+      "FP": 11297,
+      "FN": 33175
+    },
+    "precision": 0.7182793017456359,
+    "recall": 0.4647294201168156,
+    "f1_score": 0.56433315699759,
+    "specificity": 0.8939278705764157,
+    "npv": 0.7415894875409913,
+    "roc_auc": 0.7560192313916978,
+    "pr_auc": 0.6951541063842034,
+    "false_negative_rate": 0.5352705798831844,
+    "false_positive_rate": 0.10607212942358431,
+    "total_samples": 168481,
+    "positive_samples": 61978,
+    "negative_samples": 106503
+  },
+  "visualizations": [
+    "evaluation_xgboost_confusion_matrix.png",
+    "evaluation_xgboost_roc_curve.png",
+    "evaluation_xgboost_pr_curve.png"
+  ]
+}

@@ -1,0 +1,304 @@
+# Privacy and Security Configuration
+# HIPAA/GDPR Compliance Settings
+
+# ============================================================================
+# ENCRYPTION SETTINGS
+# ============================================================================
+encryption:
+  at_rest:
+    enabled: true
+    algorithm: "AES-256"  # Advanced Encryption Standard
+    key_rotation_days: 90
+  
+  in_transit:
+    enabled: true
+    protocol: "TLS 1.3"
+    certificate_path: null  # Set in production
+
+# ============================================================================
+# DE-IDENTIFICATION
+# ============================================================================
+de_identification:
+  # Patient ID Hashing
+  patient_id_hashing:
+    enabled: true
+    algorithm: "SHA-256"
+    use_salt: true
+  
+  # PII Masking
+  pii_masking:
+    enabled: true
+    masking_method: "hash"  # Options: hash, redact, pseudonymize
+    fields_to_mask:
+      - patient_name
+      - email
+      - phone
+      - address
+      - ssn
+      - date_of_birth
+  
+  # Data Anonymization (for research)
+  anonymization:
+    enabled: true
+    age_generalization:
+      enabled: true
+      bins: [0, 18, 30, 45, 60, 75, 120]
+      labels: ["0-17", "18-29", "30-44", "45-59", "60-74", "75+"]
+    
+    location_generalization:
+      enabled: true
+      precision: "city"  # Options: city, state, region
+
+# ============================================================================
+# ACCESS CONTROL (RBAC)
+# ============================================================================
+access_control:
+  rbac:
+    enabled: true
+    
+    roles:
+      # Super Admin
+      admin:
+        permissions:
+          - manage_users
+          - manage_roles
+          - view_all_data
+          - export_data
+          - modify_system_settings
+          - view_audit_logs
+        data_access: "all"
+      
+      # Doctors/Physicians
+      clinician:
+        permissions:
+          - read_patient_data
+          - write_patient_data
+          - view_predictions
+          - trigger_alerts
+          - view_reports
+        data_access: "assigned_patients"
+      
+      # Nurses
+      nurse:
+        permissions:
+          - read_patient_data
+          - view_predictions
+          - acknowledge_alerts
+        data_access: "assigned_patients"
+      
+      # Data Scientists/Researchers
+      researcher:
+        permissions:
+          - read_anonymized_data
+          - export_anonymized_data
+          - train_models
+          - view_model_metrics
+        data_access: "anonymized_only"
+      
+      # System/API
+      system:
+        permissions:
+          - read_patient_data
+          - write_patient_data
+          - view_predictions
+          - trigger_alerts
+          - train_models
+        data_access: "all"
+
+# ============================================================================
+# AUDIT LOGGING
+# ============================================================================
+audit_logging:
+  enabled: true
+  
+  events_to_log:
+    - user_login
+    - user_logout
+    - data_access
+    - data_modification
+    - data_export
+    - prediction_request
+    - alert_triggered
+    - model_training
+    - configuration_change
+  
+  retention:
+    days: 2555  # 7 years (HIPAA requirement)
+    archive_after_days: 365
+  
+  alert_on:
+    - failed_login_attempts: 5
+    - bulk_data_export: true
+    - unauthorized_access_attempt: true
+
+# ============================================================================
+# DATA VALIDATION
+# ============================================================================
+data_validation:
+  enabled: true
+  
+  vital_signs_ranges:
+    heart_rate:
+      min: 30
+      max: 200
+      unit: "bpm"
+    
+    bp_systolic:
+      min: 70
+      max: 250
+      unit: "mmHg"
+    
+    bp_diastolic:
+      min: 40
+      max: 150
+      unit: "mmHg"
+    
+    spo2:
+      min: 70
+      max: 100
+      unit: "%"
+    
+    respiratory_rate:
+      min: 8
+      max: 40
+      unit: "breaths/min"
+    
+    temperature:
+      min: 35.0
+      max: 42.0
+      unit: "°C"
+    
+    glucose_random:
+      min: 40
+      max: 600
+      unit: "mg/dL"
+
+# ============================================================================
+# DATA RETENTION
+# ============================================================================
+data_retention:
+  patient_data:
+    active_days: 365
+    archive_days: 2555  # 7 years
+    permanent_deletion_days: 3650  # 10 years
+  
+  predictions:
+    retention_days: 730  # 2 years
+  
+  audit_logs:
+    retention_days: 2555  # 7 years (HIPAA)
+  
+  model_artifacts:
+    retention_days: 1825  # 5 years
+
+# ============================================================================
+# SECURITY POLICIES
+# ============================================================================
+security:
+  # Password Policy
+  password:
+    min_length: 12
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special_chars: true
+    expiration_days: 90
+    history_count: 5  # Can't reuse last 5 passwords
+  
+  # Session Management
+  session:
+    timeout_minutes: 30
+    max_concurrent_sessions: 3
+    require_reauth_for_sensitive: true
+  
+  # API Security
+  api:
+    rate_limiting:
+      enabled: true
+      requests_per_minute: 100
+      requests_per_hour: 1000
+    
+    require_api_key: true
+    require_ip_whitelist: false
+    allowed_ips: []
+
+# ============================================================================
+# COMPLIANCE
+# ============================================================================
+compliance:
+  hipaa:
+    enabled: true
+    phi_encryption: true
+    access_logging: true
+    breach_notification: true
+  
+  gdpr:
+    enabled: true
+    right_to_erasure: true
+    data_portability: true
+    consent_management: true
+  
+  sox:
+    enabled: false
+
+# ============================================================================
+# MONITORING & ALERTING
+# ============================================================================
+monitoring:
+  # Real-time Alerts
+  alerts:
+    enabled: true
+    
+    channels:
+      - email
+      - sms
+      - slack
+    
+    alert_on:
+      - security_breach_attempt
+      - unusual_data_access_pattern
+      - failed_authentication_spike
+      - data_export_large_volume
+      - system_error_critical
+  
+  # Metrics Collection
+  metrics:
+    enabled: true
+    collection_interval_seconds: 60
+    
+    track:
+      - prediction_requests
+      - model_accuracy
+      - api_response_times
+      - error_rates
+      - active_users
+
+# ============================================================================
+# BACKUP & RECOVERY
+# ============================================================================
+backup:
+  enabled: true
+  frequency: "daily"
+  retention_days: 30
+  encryption: true
+  offsite_backup: true
+  
+  disaster_recovery:
+    rpo_hours: 4  # Recovery Point Objective
+    rto_hours: 8  # Recovery Time Objective
+
+# ============================================================================
+# DEVELOPMENT vs PRODUCTION
+# ============================================================================
+environment: "development"  # Options: development, staging, production
+
+development:
+  strict_validation: false
+  log_level: "DEBUG"
+  enable_test_users: true
+
+production:
+  strict_validation: true
+  log_level: "INFO"
+  enable_test_users: false
+  require_2fa: true

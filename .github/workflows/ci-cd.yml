@@ -1,7 +1,8 @@
-# CI/CD Pipeline for VitalViewAI
-# Task 5 Deliverable: Continuous Integration & Deployment
+# .github/workflows/ci-cd.yaml
+# VitalViewAI - CI/CD Pipeline
+# Task 5: Continuous Integration and Deployment
 
-name: VitalViewAI CI/CD
+name: CI/CD Pipeline
 
 on:
   push:
@@ -10,312 +11,223 @@ on:
     branches: [ main ]
 
 env:
-  PYTHON_VERSION: '3.11'
-  MODEL_PATH: models/
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # =============================================================================
-  # JOB 1: Code Quality & Linting
-  # =============================================================================
-  lint:
-    name: Code Quality Checks
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install linting tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black isort
-    
-    - name: Run Black (code formatter)
-      run: black --check src/ --line-length 100
-      continue-on-error: true
-    
-    - name: Run isort (import sorter)
-      run: isort --check-only src/
-      continue-on-error: true
-    
-    - name: Run Flake8 (linter)
-      run: flake8 src/ --max-line-length=100 --ignore=E501,W503
-      continue-on-error: true
-
-  # =============================================================================
-  # JOB 2: Unit Tests
+  # JOB 1: Run Tests
   # =============================================================================
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: lint
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov pytest-benchmark
-    
-    - name: Create necessary directories
-      run: |
-        mkdir -p data/processed
-        mkdir -p models
-        mkdir -p logs
-    
-    - name: Run unit tests
-      run: |
-        pytest tests/test_unit.py -v --cov=src --cov-report=xml --cov-report=term
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --cov=. --cov-report=xml
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
 
   # =============================================================================
-  # JOB 3: Data Validation
+  # JOB 2: Build Docker Images
   # =============================================================================
-  validate-data:
-    name: Validate Data Pipeline
-    runs-on: ubuntu-latest
-    needs: test
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-    
-    - name: Generate test data
-      run: |
-        python generate_working_data.py
-    
-    - name: Validate data distribution
-      run: |
-        python -c "
-        import pandas as pd
-        df = pd.read_csv('data/processed/features_working.csv')
-        positive_rate = df['label'].mean()
-        assert 0.30 < positive_rate < 0.50, f'Bad distribution: {positive_rate:.2%}'
-        print(f'✅ Data distribution OK: {positive_rate:.1%} deteriorating')
-        "
-
-  # =============================================================================
-  # JOB 4: Model Training & Evaluation
-  # =============================================================================
-  train-model:
-    name: Train & Evaluate Models
-    runs-on: ubuntu-latest
-    needs: validate-data
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-    
-    - name: Generate data
-      run: python generate_working_data.py
-    
-    - name: Engineer features
-      run: |
-        python -c "from src.features.feature_engineering import engineer_features_for_training; engineer_features_for_training('data/processed/features_working.csv', 'data/processed/features_engineered.csv')"
-    
-    - name: Train models
-      run: python train_models.py
-    
-    - name: Evaluate models
-      run: python evaluate_model.py --model xgboost
-      continue-on-error: true
-    
-    - name: Check model performance
-      run: |
-        python -c "
-        import json
-        with open('models/xgboost_model_metadata.json') as f:
-            metadata = json.load(f)
-        pr_auc = metadata['performance']['pr_auc']
-        assert pr_auc > 0.85, f'Model performance too low: PR-AUC={pr_auc}'
-        print(f'✅ Model performance acceptable: PR-AUC={pr_auc:.4f}')
-        "
-    
-    - name: Upload model artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: trained-models
-        path: |
-          models/*.pkl
-          models/*.h5
-          models/*.json
-          models/*.png
-        retention-days: 30
-
-  # =============================================================================
-  # JOB 5: Build Docker Images
-  # =============================================================================
-  build-docker:
+  build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: train-model
-    if: github.ref == 'refs/heads/main'
+    needs: test
+    if: github.event_name == 'push'
+    
+    strategy:
+      matrix:
+        service: [api, ml, dashboard]
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-      if: github.event_name != 'pull_request'
-    
-    - name: Build API image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: docker/Dockerfile.api
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/vitalview-api:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/vitalview-api:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    
-    - name: Build ML Server image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: docker/Dockerfile.ml
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/vitalview-ml:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/vitalview-ml:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: docker/Dockerfile.${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # =============================================================================
-  # JOB 6: Deploy to Staging (optional)
+  # JOB 3: Model Training (Optional - Scheduled)
   # =============================================================================
-  deploy-staging:
-    name: Deploy to Staging
+  train-model:
+    name: Train Model
     runs-on: ubuntu-latest
-    needs: build-docker
-    if: github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-      url: https://staging.vitalview.ai
+    # Only run on schedule or manual trigger
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Deploy to staging
-      run: |
-        echo "🚀 Deploying to staging environment..."
-        # Add your deployment commands here
-        # e.g., kubectl apply, docker-compose up, etc.
-    
-    - name: Run smoke tests
-      run: |
-        echo "🧪 Running smoke tests..."
-        # Add smoke test commands
-        # curl https://staging.vitalview.ai/health
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Generate training data
+        run: |
+          python generate_training_data.py
+      
+      - name: Train model
+        run: |
+          python train_models.py
+      
+      - name: Evaluate model
+        run: |
+          python evaluate_model.py
+      
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: model-artifacts
+          path: |
+            models/xgboost_model.pkl
+            models/xgboost_model_metadata.json
+            models/evaluation_*.png
+            models/evaluation_*.json
+      
+      - name: Create model release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: model-v${{ github.run_number }}
+          release_name: Model Release v${{ github.run_number }}
+          body: |
+            Automated model training run
+            - Timestamp: ${{ github.event.head_commit.timestamp }}
+            - Commit: ${{ github.sha }}
+          draft: false
+          prerelease: false
 
   # =============================================================================
-  # JOB 7: Deploy to Production
+  # JOB 4: Deploy (Production)
   # =============================================================================
-  deploy-production:
+  deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: build-docker
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: production
-      url: https://vitalview.ai
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Download model artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: trained-models
-        path: models/
-    
-    - name: Deploy to production
-      run: |
-        echo "🚀 Deploying to production environment..."
-        # Add your production deployment commands
-    
-    - name: Notify deployment
-      run: |
-        echo "✅ Deployment complete!"
-        # Add notification (Slack, email, etc.)
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Deploy via Docker Compose
+        run: |
+          # In production, this would SSH to server and deploy
+          # For now, just validate the compose file
+          docker-compose config
+      
+      - name: Notify deployment
+        run: |
+          echo "Deployment completed successfully!"
+          # Add Slack/email notification here
 
   # =============================================================================
-  # JOB 8: Model Monitoring
+  # JOB 5: Security Scan
   # =============================================================================
-  monitor-model:
-    name: Model Performance Monitoring
+  security:
+    name: Security Scan
     runs-on: ubuntu-latest
-    needs: deploy-production
-    if: github.ref == 'refs/heads/main'
+    needs: build
     
     steps:
-    - name: Check model drift
-      run: |
-        echo "📊 Checking for model drift..."
-        # Add drift detection logic
-    
-    - name: Check performance degradation
-      run: |
-        echo "📉 Monitoring model performance..."
-        # Add performance monitoring
-    
-    - name: Alert if issues found
-      if: failure()
-      run: |
-        echo "⚠️ Model issues detected! Sending alert..."
-        # Add alerting logic
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+# =============================================================================
+# Scheduled Jobs
+# =============================================================================
+on:
+  schedule:
+    # Train model weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'

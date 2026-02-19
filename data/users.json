@@ -1,0 +1,58 @@
+{
+  "admin": {
+    "username": "admin",
+    "password_hash": "$2b$12$6TbEpKxZ22JPiZAwz/GjAeeaSVAv8XIxw7iXeJEBMFKQq7qI0Vu5O",
+    "role": "admin",
+    "email": "admin@hospital.com",
+    "full_name": "System Administrator",
+    "created_at": "2026-02-11T13:59:14.700735"
+  },
+  "dr_smith": {
+    "username": "dr_smith",
+    "password_hash": "$2b$12$6xSZyGXWZdydJCBwGON7keXlxNjV.NPi8oKR774X25Fj.fSQjdaFm",
+    "role": "clinician",
+    "email": "smith@hospital.com",
+    "full_name": "Dr. John Smith",
+    "created_at": "2026-02-11T13:59:14.949702"
+  },
+  "nurse_alice": {
+    "username": "nurse_alice",
+    "password_hash": "$2b$12$dD3NrJnLHO1KEyUjgFgLc.KX2QJfgCNGGCJp8Z/Z7d0DtXvoa89oK",
+    "role": "nurse",
+    "email": "alice@hospital.com",
+    "full_name": "Alice Johnson",
+    "created_at": "2026-02-11T13:59:15.197892"
+  },
+  "researcher": {
+    "username": "researcher",
+    "password_hash": "$2b$12$smxNmKSR7G8A8BfDZPeCKOiQbqrbCp/igYAPgms9Q4thTJ5gI6p.u",
+    "role": "researcher",
+    "email": "researcher@hospital.com",
+    "full_name": "Research Team",
+    "created_at": "2026-02-11T13:59:15.451808"
+  },
+  "Shabeeha": {
+    "username": "Shabeeha",
+    "password_hash": "$2b$12$RR7bxq9.4XHW8k/iReLrHuSevthGb6q6rYSisspbZM71Tpy7JCbFO",
+    "role": "researcher",
+    "email": "shabeehak@gmail.com",
+    "full_name": "Shabeeha K",
+    "created_at": "2026-02-14T16:20:24.587004"
+  },
+  "shabeeha tester": {
+    "username": "shabeeha tester",
+    "password_hash": "$2b$12$29JaNGNBbEekiTEQh6JJDu7b0o2ddFh2arTvOjmtS6GcTZsEGV9lO",
+    "role": "researcher",
+    "email": "shabtest@gmail.com",
+    "full_name": "shabeeha k tester",
+    "created_at": "2026-02-15T13:13:03.509303"
+  },
+  "shab_tester": {
+    "username": "shab_tester",
+    "password_hash": "$2b$12$QCY28RXII087m7WY5n.PCOLN4GWw.8P5FWeCfq4/cuOf1lr3quxA6",
+    "role": "clinician",
+    "email": "shab@gmail.com",
+    "full_name": "shabeeha k",
+    "created_at": "2026-02-19T15:30:18.144782"
+  }
+}

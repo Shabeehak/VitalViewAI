@@ -606,6 +606,18 @@ python test_api_complete.py
 5. **Healthcare Trade-offs**: Justified recall > precision
 
 ---
+## 📚 Documentation
+
+Complete documentation available in the [`docs/`](docs/) directory:
+
+- **[System Architecture](docs/ARCHITECTURE.md)** - Complete system design
+- **[Model Evaluation](docs/MODEL_EVALUATION.md)** - Performance analysis
+- **[Data Documentation](docs/DATA_DOCUMENTATION.md)** - Data pipeline
+- **[Dashboard Guide](docs/DASHBOARD_GUIDE.md)** - User manual
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production hosting
+
+See [docs/README.md](docs/README.md) for complete documentation index.
+
 
 ## 📞 Contact
 

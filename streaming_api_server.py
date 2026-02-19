@@ -22,6 +22,9 @@ import os
 import uuid
 import time
 
+#montitoring
+from prometheus_metrics import metrics_tracker, metrics_endpoint
+
 # Add src to path
 sys.path.append('src')
 from data.wearable_simulator import WearableDevice
@@ -135,6 +138,30 @@ async def log_requests(request: Request, call_next):
         
         api_metrics['total_errors'] += 1
         raise
+
+# Add metrics endpoint
+@app.get("/metrics")
+async def metrics():
+    """Prometheus scrapes this endpoint"""
+    return await metrics_endpoint()
+
+# Track requests
+@app.middleware("http")
+async def track_metrics(request: Request, call_next):
+    start_time = time.time()
+    
+    response = await call_next(request)
+    duration = time.time() - start_time
+    
+    # This gets exposed at /metrics
+    metrics_tracker.track_request(
+        method=request.method,
+        endpoint=request.url.path,
+        status_code=response.status_code,
+        duration=duration
+    )
+    
+    return response
 
 # ==================== REQUEST/RESPONSE MODELS ====================
 

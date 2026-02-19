@@ -593,9 +593,9 @@ Result: 2x improvement just from data!
 ## 🔗 Related Documentation
 
 - [Main README](README.md) - Project overview
-- [Dashboard Guide](DASHBOARD_GUIDE.md) - Frontend documentation
-- [Architecture Guide](ARCHITECTURE.md) - System design
-- [Model Evaluation](MODEL_EVALUATION.md) - Performance analysis
+- [Dashboard Guide](docs/DASHBOARD_GUIDE.md) - Frontend documentation
+- [Architecture Guide](docs/ARCHITECTURE.md) - System design
+- [Model Evaluation](docs/MODEL_EVALUATION.md) - Performance analysis
 
 ---
 

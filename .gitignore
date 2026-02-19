@@ -1,27 +1,140 @@
+# VitalViewAI .gitignore
+
+# ============================================================================
 # Python
-venv/
+# ============================================================================
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Data
-data/raw/
-data/processed/*.csv
-data/processed/*.parquet
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
 
-# Models (large files)
-models/*.pkl
+# ============================================================================
+# Data Files (KEEP PROCESSED, IGNORE RAW)
+# ============================================================================
+# Keep processed data for model training
+!data/processed/features_engineered.csv
+!data/processed/features_multi.csv
+!data/processed/wearable_data_multi.csv
+!data/processed/lab_results_multi.csv
+
+# Ignore temporary/raw data
+data/raw/*
+data/interim/*
+data/runtime/*
+*.csv.tmp
+
+# ============================================================================
+# Models (KEEP TRAINED MODELS, IGNORE CHECKPOINTS)
+# ============================================================================
+# Keep final trained models
+!models/xgboost_model.pkl
+!models/xgboost_model_metadata.json
+!models/evaluation_xgboost_report.json
+!models/*.png
+
+# Ignore large checkpoint files
+models/checkpoints/*
 models/*.h5
+models/*_scaler.pkl
+models/lstm_*
 
-# Logs
-logs/
+# ============================================================================
+# Logs (IGNORE - Too Large)
+# ============================================================================
+logs/*.log
 *.log
 
-# Secrets
-.env
-*.key
-config/*.secret.yaml
+# Keep log directory structure
+!logs/.gitkeep
 
-# OS
+# ============================================================================
+# IDE & Editors
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================================================
+# Environment & Secrets
+# ============================================================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# ============================================================================
+# Docker
+# ============================================================================
+docker-compose.override.yml
+
+# ============================================================================
+# MLflow
+# ============================================================================
+mlruns/
+mlartifacts/
+
+# ============================================================================
+# Testing
+# ============================================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ============================================================================
+# Monitoring (Keep Config, Ignore Data)
+# ============================================================================
+monitoring/grafana/grafana.db
+monitoring/prometheus/data/
+
+# Keep dashboard configs
+!monitoring/grafana/dashboards/*.json
+!monitoring/grafana/datasources/*.yaml
+
+# ============================================================================
+# Backups
+# ============================================================================
+backups/*.sql
+backups/*.dump
+
+# ============================================================================
+# System Files
+# ============================================================================
+*.pid
+*.seed
+*.pid.lock

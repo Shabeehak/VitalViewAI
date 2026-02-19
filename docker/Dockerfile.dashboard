@@ -1,0 +1,46 @@
+# docker/Dockerfile.dashboard
+# Streamlit Dashboard - Production Ready
+# Task 5: Scalability - Web UI for patient monitoring
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY streamlit_dashboard.py .
+COPY auth_system.py .
+COPY logging_config.py .
+COPY privacy_utils.py .
+COPY privacy_config.yaml .
+
+# Copy src directory (for any shared utilities)
+COPY src/ ./src/
+
+# Create directories
+RUN mkdir -p logs data config
+
+# Expose Streamlit default port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Run Streamlit
+CMD ["streamlit", "run", "streamlit_dashboard.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true", \
+     "--browser.gatherUsageStats=false"]

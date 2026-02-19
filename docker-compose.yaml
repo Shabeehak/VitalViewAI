@@ -1,5 +1,11 @@
-# Docker Compose Configuration for VitalViewAI
+# docker-compose.yaml
+# VitalViewAI - Simplified Deployment
 # Task 5 Deliverable: Scalability and Deployment
+#
+# This runs the 3 core services:
+# 1. Streaming API Server (port 8000) - collects patient data
+# 2. ML Model Server (port 8001) - serves predictions
+# 3. Streamlit Dashboard (port 8501) - web UI
 
 version: '3.8'
 
@@ -17,21 +23,11 @@ services:
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=vitalview
-      - DB_USER=vitalview_user
-      - DB_PASSWORD=${DB_PASSWORD}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - PATIENT_ID_SALT=${PATIENT_ID_SALT}
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./models:/app/models
-    depends_on:
-      - postgres
-      - redis
+      - ./config:/app/config
     networks:
       - vitalview-network
     restart: unless-stopped
@@ -57,12 +53,12 @@ services:
       - MODEL_PATH=/app/models/xgboost_model.pkl
       - BATCH_SIZE=32
       - MAX_WORKERS=4
-      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
-    depends_on:
-      - redis
+      - ./data:/app/data
+      - ./config:/app/config
     networks:
       - vitalview-network
     restart: unless-stopped
@@ -79,200 +75,37 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # =============================================================================
-  # POSTGRESQL DATABASE (Patient Records & Predictions)
+  # STREAMLIT DASHBOARD (Web UI)
   # =============================================================================
-  postgres:
-    image: postgres:15-alpine
-    container_name: vitalview-db
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: vitalview-dashboard
     ports:
-      - "5432:5432"
+      - "8501:8501"
     environment:
-      - POSTGRES_DB=vitalview
-      - POSTGRES_USER=vitalview_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+      - API_BASE=http://api-server:8000
+      - ML_API_BASE=http://ml-server:8001
+      - PYTHONUNBUFFERED=1
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - vitalview-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vitalview_user -d vitalview"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # =============================================================================
-  # REDIS (Caching & Real-time Data)
-  # =============================================================================
-  redis:
-    image: redis:7-alpine
-    container_name: vitalview-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - vitalview-network
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # =============================================================================
-  # MONITORING DASHBOARD (Grafana)
-  # =============================================================================
-  grafana:
-    image: grafana/grafana:latest
-    container_name: vitalview-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_INSTALL_PLUGINS=grafana-clock-panel
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-    networks:
-      - vitalview-network
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-
-  # =============================================================================
-  # METRICS COLLECTION (Prometheus)
-  # =============================================================================
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: vitalview-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    networks:
-      - vitalview-network
-    restart: unless-stopped
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
-
-  # =============================================================================
-  # LOG AGGREGATION (ELK Stack - Optional)
-  # =============================================================================
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: vitalview-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    networks:
-      - vitalview-network
-    restart: unless-stopped
-
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.11.0
-    container_name: vitalview-logstash
-    volumes:
-      - ./monitoring/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-      - ./logs:/logs
-    networks:
-      - vitalview-network
-    depends_on:
-      - elasticsearch
-    restart: unless-stopped
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.0
-    container_name: vitalview-kibana
-    ports:
-      - "5601:5601"
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    networks:
-      - vitalview-network
-    depends_on:
-      - elasticsearch
-    restart: unless-stopped
-
-  # =============================================================================
-  # NGINX REVERSE PROXY (Load Balancer & SSL)
-  # =============================================================================
-  nginx:
-    image: nginx:alpine
-    container_name: vitalview-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./nginx/html:/usr/share/nginx/html
+      - ./logs:/app/logs
+      - ./data:/app/data
     networks:
       - vitalview-network
     depends_on:
       - api-server
       - ml-server
     restart: unless-stopped
-
-  # =============================================================================
-  # MODEL RETRAINING SERVICE (Scheduled Jobs)
-  # =============================================================================
-  model-trainer:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.trainer
-    container_name: vitalview-trainer
-    environment:
-      - SCHEDULE_CRON="0 2 * * 0"  # Weekly on Sunday at 2 AM
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=vitalview
-      - DB_USER=vitalview_user
-      - DB_PASSWORD=${DB_PASSWORD}
-    volumes:
-      - ./models:/app/models
-      - ./data:/app/data
-      - ./logs:/app/logs
-    networks:
-      - vitalview-network
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  # =============================================================================
-  # DATA BACKUP SERVICE
-  # =============================================================================
-  backup:
-    image: postgres:15-alpine
-    container_name: vitalview-backup
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=vitalview
-      - POSTGRES_USER=vitalview_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - BACKUP_SCHEDULE="0 1 * * *"  # Daily at 1 AM
-    volumes:
-      - ./backups:/backups
-      - ./scripts/backup.sh:/backup.sh
-    networks:
-      - vitalview-network
-    depends_on:
-      - postgres
-    command: sh -c "chmod +x /backup.sh && crond -f"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 # =============================================================================
 # NETWORKS
@@ -280,21 +113,20 @@ services:
 networks:
   vitalview-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 # =============================================================================
-# VOLUMES (Persistent Storage)
+# NOTES
 # =============================================================================
-volumes:
-  postgres-data:
-    driver: local
-  redis-data:
-    driver: local
-  grafana-data:
-    driver: local
-  prometheus-data:
-    driver: local
-  elasticsearch-data:
-    driver: local
+# To run:
+#   docker-compose up --build
+#
+# To stop:
+#   docker-compose down
+#
+# To view logs:
+#   docker-compose logs -f
+#
+# Access points:
+#   - Streaming API: http://localhost:8000
+#   - ML API: http://localhost:8001
+#   - Dashboard: http://localhost:8501

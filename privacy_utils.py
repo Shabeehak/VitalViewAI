@@ -635,6 +635,40 @@ class PrivacyManager:
             logger.error(f"Data validation failed: {str(e)}", exc_info=True)
             error_logger.log_error(e, context={'operation': 'validate_data_integrity'})
             return False
+        
+    def get_user_permissions(self, role: str) -> list:
+        """
+        Return list of permissions for a given role
+        """
+        role_permissions = {
+            "admin": [
+                "read_patient_data",
+                "write_patient_data",
+                "view_predictions",
+                "trigger_alerts",
+                "modify_patient_records",
+                "manage_users"
+            ],
+            "clinician": [
+                "read_patient_data",
+                "write_patient_data",
+                "view_predictions",
+                "trigger_alerts",
+                "modify_patient_records"
+            ],
+            "nurse": [
+                "read_patient_data",
+                "view_predictions",
+                "trigger_alerts"
+            ],
+            "viewer": [
+                "read_patient_data",
+                "view_predictions"
+            ]
+        }
+
+        return role_permissions.get(role, [])
+
 
 
 # Demo and testing
@@ -702,6 +736,13 @@ def demo_privacy_features():
     print("="*70)
     print("\n📝 Check logs/ directory for detailed logs")
 
+# Global instance for easy import
+try:
+    privacy_manager = PrivacyManager()
+except Exception as e:
+    import warnings
+    warnings.warn(f"Could not initialize PrivacyManager: {e}")
+    privacy_manager = None
 
 if __name__ == "__main__":
     # Create logs directory if it doesn't exist
@@ -709,3 +750,5 @@ if __name__ == "__main__":
     
     # Run demo
     demo_privacy_features()
+
+    

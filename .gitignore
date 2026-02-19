@@ -138,3 +138,35 @@ backups/*.dump
 *.pid
 *.seed
 *.pid.lock
+
+# Large data files - not pushing to GitHub
+data/processed/*.csv
+data/runtime/*.csv
+data/raw/*.csv
+data/interim/*.csv
+
+# Large model files - not pushing to GitHub
+models/*.pkl
+models/*.h5
+models/*.joblib
+
+# Keep only metadata
+!models/*.json
+!models/*.png
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Logs
+logs/*.log
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db

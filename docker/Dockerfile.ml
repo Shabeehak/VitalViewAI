@@ -33,11 +33,9 @@ COPY src/ ./src/
 # Create directories
 RUN mkdir -p logs models data config
 
-# Copy model metadata (small file, can be in GitHub)
+# Copy model files
+COPY models/xgboost_model.pkl ./models/
 COPY models/xgboost_model_metadata.json ./models/
-
-# Model file will be mounted as volume or generated at runtime
-# Not copied during build to avoid large file issues
 
 # Expose port
 EXPOSE 8001

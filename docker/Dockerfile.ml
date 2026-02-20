@@ -33,8 +33,8 @@ COPY src/ ./src/
 # Create directories
 RUN mkdir -p logs models data config
 
-# Copy model files
-COPY models/xgboost_model.pkl ./models/
+# Copy model metadata only (model will be downloaded at runtime)
+# COPY models/xgboost_model.pkl ./models/
 COPY models/xgboost_model_metadata.json ./models/
 
 # Expose port

@@ -33,43 +33,60 @@ COPY models/xgboost_model_metadata.json ./models/
 # Create necessary directories
 RUN mkdir -p logs models data config
 
+# Create startup scripts for each service
+RUN echo '#!/bin/bash\n\
+exec uvicorn streaming_api_server:app --host 127.0.0.1 --port 8000 --log-level info\n\
+' > /app/start-api.sh && chmod +x /app/start-api.sh
+
+RUN echo '#!/bin/bash\n\
+exec uvicorn ml_server:app --host 127.0.0.1 --port 8001 --log-level info\n\
+' > /app/start-ml.sh && chmod +x /app/start-ml.sh
+
+RUN echo '#!/bin/bash\n\
+exec streamlit run streamlit_dashboard.py --server.address=0.0.0.0 --server.port=8501 --server.headless=true --browser.gatherUsageStats=false\n\
+' > /app/start-dashboard.sh && chmod +x /app/start-dashboard.sh
+
 # Create supervisor configuration
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
 logfile=/app/logs/supervisord.log\n\
 pidfile=/app/logs/supervisord.pid\n\
+loglevel=info\n\
 \n\
 [program:api-server]\n\
-command=python -u streaming_api_server.py\n\
+command=/app/start-api.sh\n\
 autostart=true\n\
 autorestart=true\n\
 stderr_logfile=/app/logs/api-server.err.log\n\
 stdout_logfile=/app/logs/api-server.out.log\n\
+priority=10\n\
 \n\
 [program:ml-server]\n\
-command=python -u ml_server.py\n\
+command=/app/start-ml.sh\n\
 autostart=true\n\
 autorestart=true\n\
 stderr_logfile=/app/logs/ml-server.err.log\n\
 stdout_logfile=/app/logs/ml-server.out.log\n\
+priority=20\n\
 \n\
 [program:dashboard]\n\
-command=streamlit run streamlit_dashboard.py --server.address=0.0.0.0 --server.port=8501\n\
+command=/app/start-dashboard.sh\n\
 autostart=true\n\
 autorestart=true\n\
 stderr_logfile=/app/logs/dashboard.err.log\n\
 stdout_logfile=/app/logs/dashboard.out.log\n\
+priority=30\n\
 ' > /etc/supervisor/conf.d/supervisord.conf
 
 # Set environment variables for internal communication
-ENV API_BASE=http://localhost:8000
-ENV ML_API_BASE=http://localhost:8001
+ENV API_BASE=http://127.0.0.1:8000
+ENV ML_API_BASE=http://127.0.0.1:8001
 
-# Expose port for Streamlit dashboard (main entry point)
+# Expose ONLY port 8501 (dashboard)
 EXPOSE 8501
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check for Streamlit
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
 # Start all services with supervisor

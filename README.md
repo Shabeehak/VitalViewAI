@@ -6,6 +6,31 @@
 
 ---
 
+## 🌐 Live Demo
+
+**[https://vitalviewai-n7su.onrender.com](https://vitalviewai-n7su.onrender.com)**
+
+> ⚠️ Hosted on Render free tier — may take 30–60 seconds to wake up on first load.
+
+---
+
+## 📸 Screenshots
+
+### Monitoring Dashboard
+![Dashboard Overview](docs/screenshots/dashboard.png)
+
+### Live Prediction Result
+![Prediction Result](docs/screenshots/prediction.png)
+
+### API (Swagger UI)
+![API Endpoints](docs/screenshots/api_swagger.png)
+
+### Model Performance
+![Feature Importance](models/feature_importance.png)
+![PR Curve](models/pr_curve.png)
+
+---
+
 ## 🎯 Project Overview
 
 VitalViewAI is a complete machine learning system that monitors patient vital signs from wearable devices and predicts health deterioration events 48 hours in advance. This project showcases the full ML lifecycle from data generation to production deployment, including the **challenges and iterations** required to achieve meaningful performance.

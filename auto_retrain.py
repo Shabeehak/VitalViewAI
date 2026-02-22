@@ -17,6 +17,7 @@ import json
 import argparse
 from pathlib import Path
 import sys
+from typing import Dict
 
 sys.path.append('src')
 

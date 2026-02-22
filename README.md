@@ -498,6 +498,9 @@ python tests/test_api_complete.py
    - No load balancing
    - Fix: Kubernetes HPA already scaffolded in `deployment/`
 
+7. **Monitoring**:  
+   - Prometheus/Grafana configured but requires Docker deployment to run — not active on Render free tier.
+
 ### Planned Improvements
 
 - SHAP explainability for individual predictions

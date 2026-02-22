@@ -19,7 +19,8 @@ from pathlib import Path
 
 
 # JWT Configuration
-SECRET_KEY = "your-secret-key-change-in-production"
+import os
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 
@@ -281,10 +282,8 @@ def demo_authentication():
     
     # Show all users
     print("\n4. Default Users:")
-    print("   Username: admin | Password: admin123 | Role: admin")
-    print("   Username: dr_smith | Password: doctor123 | Role: clinician")
-    print("   Username: nurse_alice | Password: nurse123 | Role: nurse")
-    print("   Username: researcher | Password: research123 | Role: researcher")
+    print("   Demo credentials are defined in auth_system.py defaults")
+    print("   For production: configure via environment variables")
     
     print("\n" + "="*70 + "\n")
 

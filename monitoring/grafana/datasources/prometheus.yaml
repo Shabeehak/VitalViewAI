@@ -1,3 +1,4 @@
+#monitoring/grafana/datasources/prometheus.yaml
 # Grafana Datasource Configuration
 # Auto-provisions Prometheus as data source
 

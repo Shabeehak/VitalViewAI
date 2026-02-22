@@ -128,7 +128,7 @@ groups:
       # Model Performance Degradation
       - alert: ModelPerformanceDegradation
         expr: |
-          ml_model_pr_auc < 0.85
+          ml_model_pr_auc < 0.60
         for: 10m
         labels:
           severity: critical

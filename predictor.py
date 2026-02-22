@@ -74,11 +74,6 @@ class HealthPredictor:
             }
         )
         try:
-            # Check if model exists, if not download from Google Drive
-            if not os.path.exists(model_path):
-                logger.warning(f"Model file not found at {model_path}, downloading from Google Drive...")
-                self._download_model_from_gdrive(model_path)
-            
             # Load model
             if model_type == "xgboost":
                 self.model = joblib.load(model_path)
@@ -524,48 +519,6 @@ class HealthPredictor:
         logger.info(f"Statistics requested", extra=stats)
         
         return stats
-
-    def _download_model_from_gdrive(self, model_path: str):
-        """Download model from Google Drive if not present"""
-        import requests
-        import os
-        
-        # Your Google Drive file ID
-        file_id = "1lnmxCHDiCCS1ro__Iwtqn6mT6tqXQbYH"
-        
-        # Google Drive direct download URL
-        url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        
-        logger.info(f"Downloading model from Google Drive...")
-        print(f"📥 Downloading model from Google Drive...")
-        
-        try:
-            # Create models directory if it doesn't exist
-            os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            
-            # Download with session to handle large files
-            session = requests.Session()
-            response = session.get(url, stream=True)
-            
-            # Handle Google Drive's virus scan warning for large files
-            for key, value in response.cookies.items():
-                if key.startswith('download_warning'):
-                    params = {'confirm': value}
-                    response = session.get(url, params=params, stream=True)
-                    break
-            
-            # Save the file
-            with open(model_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            logger.info(f"✅ Model downloaded successfully to {model_path}")
-            print(f"✅ Model downloaded successfully!")
-            
-        except Exception as e:
-            logger.error(f"Failed to download model: {str(e)}")
-            raise Exception(f"Could not download model from Google Drive: {str(e)}")
 
 def demo_prediction():
     """Demonstrate predictor usage with logging"""

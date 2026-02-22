@@ -8,14 +8,14 @@
 
 ## 🎯 Project Overview
 
-VitalViewAI is a complete machine learning system that monitors patient vital signs from wearable devices and predicts health deterioration events 48 hours in advance. This project showcases the full ML lifecycle from data generation to production deployment, including the **challenges and iterations** required to achieve production-ready performance.
+VitalViewAI is a complete machine learning system that monitors patient vital signs from wearable devices and predicts health deterioration events 48 hours in advance. This project showcases the full ML lifecycle from data generation to production deployment, including the **challenges and iterations** required to achieve meaningful performance.
 
 ### Key Achievement: The Tuning Journey
 
 This project documents a real ML debugging and optimization journey:
 - Started with **0.30 PR-AUC** (barely better than random)
-- Through systematic debugging: **→ 0.65 PR-AUC**
-- Final recall: **91%** (catching 91% of deterioration events)
+- Through systematic data quality fixes: **→ 0.695 PR-AUC**
+- Precision: **71.8%** | Recall: **46.5%** | ROC-AUC: **0.756**
 
 See [Model Performance Journey](#-model-performance-journey) for details.
 
@@ -40,9 +40,9 @@ See [Model Performance Journey](#-model-performance-journey) for details.
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
 │                 XGBoost Classifier                            │
-│  • 500 trees, depth 6, learning rate 0.01                    │
+│  • 200 trees (early stopped at iteration 163)                │
 │  • SMOTE balancing + patient-level splitting                 │
-│  • Threshold optimization (0.3 for high recall)              │
+│  • Data-driven threshold optimization                        │
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
@@ -57,7 +57,7 @@ See [Model Performance Journey](#-model-performance-journey) for details.
 
 ## 🔬 Model Performance Journey
 
-### The Challenge: From 0.30 to 0.65 PR-AUC
+### The Challenge: From 0.30 to 0.695 PR-AUC
 
 This section documents the **systematic debugging process** that improved model performance:
 
@@ -99,7 +99,7 @@ PR-AUC: Dropped to 0.10
 
 ---
 
-#### **Iteration 3: Threshold Calibration (PR-AUC: 0.10)**
+#### **Iteration 3: Threshold Calibration**
 
 **Action Taken**: Increased threshold 0.20 → 0.45 (too strict)
 ```
@@ -108,7 +108,7 @@ Class distribution: 0.1% deteriorating (way too strict!)
 
 **Action Taken**: Fine-tuned to threshold 0.25
 ```
-Class distribution: **37.6% deteriorating** ✅ PERFECT!
+Class distribution: 37.6% deteriorating ✅
 Deterioration: 422,209 samples
 Stable: 700,991 samples
 Imbalance ratio: 1.7:1
@@ -118,29 +118,28 @@ Imbalance ratio: 1.7:1
 
 ---
 
-#### **Iteration 4: Model Training (PR-AUC: 0.65)**
+#### **Iteration 4: Final Model (PR-AUC: 0.695)**
 
 **With properly balanced data** (37.6% deteriorating):
 
 **Training Results**:
 ```
-Training PR-AUC: 0.85
+Training PR-AUC:   0.86
 Validation PR-AUC: 0.68
-Test PR-AUC: 0.65
+Test PR-AUC:       0.695
+Early stopping:    iteration 163 of 200
 ```
 
 **Performance Metrics**:
 ```
-✅ Recall: 91% (catching 91% of deterioration events)
-⚠️ Precision: 35% (high false alarm rate)
-✅ False Negatives: 6,950 (down from 33,141)
-✅ ROC-AUC: 0.73
+Precision:   71.8% (when it alerts, it's usually right)
+Recall:      46.5% (catches ~half of deterioration events)
+F1-Score:    0.564
+ROC-AUC:     0.756
+Specificity: 89.4%
 ```
 
-**Clinical Interpretation**:
-- **Excellent recall** for patient safety (91% catch rate)
-- Trade-off: More false alarms, but **safer** than missing sick patients
-- Suitable for initial deployment with clinical oversight
+**Overfitting gap** (train 0.86 vs val 0.68) identified as the primary next improvement target — requires stronger regularization or feature selection.
 
 ---
 
@@ -148,11 +147,11 @@ Test PR-AUC: 0.65
 
 | Learning | Impact |
 |----------|--------|
-| **Data quality > Model complexity** | 10x improvement just from fixing data |
-| **Class balance is critical** | 6% → 37% positive samples = huge gain |
-| **Threshold tuning requires iteration** | 5 attempts to find optimal 0.25 |
-| **Healthcare = Recall > Precision** | False alarms acceptable, missed events dangerous |
-| **Overfitting is real** | Train (0.85) vs Val (0.68) = need regularization |
+| **Data quality > Model complexity** | Biggest gains came from fixing data, not the model |
+| **Class balance is critical** | 6% → 37% positive samples drove most improvement |
+| **Threshold tuning requires iteration** | 4 attempts to find a realistic distribution |
+| **Healthcare = Recall vs Precision trade-off** | Both matter — missing events is dangerous, false alarms burn clinician trust |
+| **Overfitting needs addressing** | Train/val gap shows regularization opportunity |
 
 ---
 
@@ -169,7 +168,7 @@ Python 3.11+
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/vitalviewai.git
+git clone https://github.com/Shabeehak/VitalViewAI.git
 cd vitalviewai
 
 # Create virtual environment
@@ -188,13 +187,14 @@ pip install -r requirements.txt
 ### Complete Workflow
 
 ```bash
-# Step 1: Generate data (takes 5-10 minutes)
+# Step 1: Generate data (takes 30-60 minutes for 130 patients)
 python generate_diverse_training_data.py
-# Creates 1.1M samples from 130 patients
 
-# Step 2: Train model (takes 3-5 minutes)  
-python train_models_improved.py
-# Trains XGBoost with optimized hyperparameters
+# Quick test run (10 patients, ~3 minutes)
+python generate_diverse_training_data.py --quick
+
+# Step 2: Train model (takes 5-10 minutes)
+python train_models.py
 
 # Step 3: Evaluate
 python evaluate_model.py --model xgboost
@@ -202,9 +202,6 @@ python evaluate_model.py --model xgboost
 
 # Step 4: Start system (Windows)
 .\start_system.ps1
-
-# Step 4: Start system (Linux/Mac)
-./start_system.sh
 
 # Step 5: Run dashboard
 streamlit run streamlit_dashboard.py
@@ -219,7 +216,7 @@ Access at: http://localhost:8501
 ```
 VitalViewAI/
 ├── generate_diverse_training_data.py   # Data generation (130 patients)
-├── train_models_improved.py            # Optimized training pipeline
+├── train_models.py                     # Training pipeline
 ├── evaluate_model.py                   # Model evaluation
 ├── streaming_api_server.py             # FastAPI backend (port 8000)
 ├── ml_server.py                        # ML inference API (port 8001)
@@ -228,73 +225,83 @@ VitalViewAI/
 │
 ├── src/
 │   ├── data/
-│   │   ├── realtime_health_simulator.py   # Wearable simulator
-│   │   └── generate_lab_data.py           # Lab results
+│   │   ├── wearable_simulator.py          # Wearable device simulator
+│   │   └── generate_lab_data.py           # Lab results generator
 │   ├── features/
 │   │   └── feature_engineering.py         # 133 features
 │   └── models/
-│       └── train_xgboost.py              # XGBoost trainer
+│       └── train_xgboost.py               # XGBoost training class
 │
 ├── data/
 │   └── processed/
-│       ├── features_multi.csv            # 1.1M samples
-│       └── features_engineered.csv       # 133 features
+│       ├── features_multi.csv             # 1.1M samples
+│       └── features_engineered.csv        # With 133 engineered features
 │
 ├── models/
-│   ├── xgboost_model.pkl                # Trained model
-│   ├── xgboost_model_metadata.json      # Performance metrics
+│   ├── xgboost_model.pkl                  # Trained model
+│   ├── xgboost_model_metadata.json        # Performance + threshold metadata
 │   ├── confusion_matrix.png
 │   ├── pr_curve.png
 │   └── feature_importance.png
 │
 ├── logs/
-│   ├── application.log                  # General logs
-│   ├── audit.log                        # HIPAA-style audit trail
-│   └── performance.log                  # Prediction latencies
+│   ├── application.log                    # General logs
+│   ├── audit.log                          # HIPAA-style audit trail
+│   └── performance.log                    # Prediction latencies
 │
-├── start_system.ps1                     # Windows startup
-├── stop_system.ps1                      # Windows shutdown
-├── privacy_config.yaml                  # Security settings
-├── logging_config.py                    # Logging configuration
-└── requirements.txt                     # Dependencies
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── MODEL_EVALUATION.md
+│   ├── DATA_DOCUMENTATION.md
+│   ├── DASHBOARD_GUIDE.md
+│   └── DEPLOYMENT.md
+│
+├── monitoring/
+│   ├── grafana/
+│   └── prometheus/
+│
+├── privacy_config.yaml                    # Security settings
+├── logging_config.py                      # Logging configuration
+├── docker-compose.yaml                    # Container orchestration
+└── requirements.txt
 ```
 
 ---
 
 ## 📊 Final Performance Metrics
 
-### Model Performance (on 168K test samples)
+### Model Performance (evaluated on 168K held-out test samples)
 
 | Metric | Value | Interpretation |
 |--------|-------|----------------|
-| **PR-AUC** | **0.6593** | Moderate discrimination ability |
-| **ROC-AUC** | **0.7283** | Good overall performance |
-| **Recall** | **91%** | ✅ Catches 91% of deterioration events |
-| **Precision** | **35%** | ⚠️ High false alarm rate |
-| **Specificity** | **89%** | Good at identifying stable patients |
-| **F1-Score** | **0.56** | Balanced performance |
+| **PR-AUC** | **0.695** | Moderate-good discrimination |
+| **ROC-AUC** | **0.756** | Good overall class separation |
+| **Precision** | **71.8%** | When it alerts, usually correct |
+| **Recall** | **46.5%** | Catches ~half of deterioration events |
+| **Specificity** | **89.4%** | Strong at identifying stable patients |
+| **F1-Score** | **0.564** | Balanced performance |
 
-### Clinical Translation
+### Confusion Matrix (168,481 test samples)
 
 ```
-✅ True Positives: 70,086 (Correctly identified deteriorating patients)
-❌ False Negatives: 6,950 (Missed deterioration - CRITICAL)
-⚠️ False Positives: 127,522 (False alarms - ACCEPTABLE in healthcare)
-✅ True Negatives: 20,082 (Correctly identified stable patients)
+                    Predicted
+                  Stable  |  Deteriorating
+Actual  Stable    95,206  |  11,297   ← false alarms (10.6%)
+      Deterior.   33,175  |  28,803   ← missed events (primary target)
 
-Clinical Safety:
-- Missing only 9% of deterioration events
-- False alarm rate acceptable with clinical oversight
-- Suitable for alerting system with human verification
+True Positives:  28,803  ✅ (correctly caught)
+True Negatives:  95,206  ✅ (correctly cleared)
+False Positives: 11,297  ⚠️  (false alarms — 10.6% of stable patients)
+False Negatives: 33,175  ❌  (missed deterioration — improvement target)
 ```
 
-### Why 91% Recall Matters More Than 35% Precision
+### Clinical Trade-off Context
 
-In healthcare monitoring:
-- **Missing a deteriorating patient = Life-threatening** ❌
-- **False alarm = Annoying but safe** ⚠️
+In healthcare monitoring two errors have very different costs:
+- **Missed deterioration (FN)** → patient doesn't get timely intervention
+- **False alarm (FP)** → unnecessary clinical review, alert fatigue
 
-Trade-off decision: **Prefer false alarms over missed events**
+This model prioritises specificity (89.4%) to keep false alarms at 10.6%, accepting ~53% miss rate. The next iteration would tune the decision threshold to shift this balance depending on clinical deployment context.
 
 ---
 
@@ -302,98 +309,84 @@ Trade-off decision: **Prefer false alarms over missed events**
 
 ### Data Generation
 
-**Sophisticated Patient Simulator**:
+**Patient Simulator**:
 ```python
 # 130 patients with diverse health profiles
-- 50% Healthy (baseline vitals)
-- 30% At-risk (borderline vitals)  
+- 50% Healthy (normal baseline vitals)
+- 30% At-risk (borderline vitals)
 - 20% Deteriorating (frequent events)
 
-# Realistic event probability by profile
+# Event probability by profile
 event_probability = {
-    'healthy': 0.35,        # 35% experience events
-    'at_risk': 0.65,        # 65% experience events
-    'deteriorating': 0.90   # 90% experience events
+    'healthy':      0.35,
+    'at_risk':      0.65,
+    'deteriorating': 0.90
 }
 
 # Event types simulated
 - Hypertensive crisis (BP spike)
-- Hypoxia (low oxygen)
-- Tachycardia (rapid heart rate)
-- Sepsis (multiple vital abnormalities)
+- Hypoxia (low oxygen saturation)
+- Sepsis (multi-vital deterioration)
+- Cardiac (heart rate + BP instability)
 ```
 
 ### Feature Engineering
 
 **133 Features from 6 Base Vitals**:
 
-```python
+```
 Base Vitals (6):
-├── Heart Rate (bpm)
-├── Blood Pressure Systolic/Diastolic (mmHg)
-├── SpO2 (%)
-├── Respiratory Rate (breaths/min)
-└── Temperature (°C)
+  Heart Rate, BP Systolic, BP Diastolic,
+  SpO2, Respiratory Rate, Temperature
 
 Rolling Statistics (72 features):
-├── Mean, Std, Min, Max over [1h, 6h, 12h, 24h] windows
-├── Example: heart_rate_mean_1h, bp_systolic_std_6h
+  Mean, Std, Min, Max over [1h, 6h, 12h] windows
+  e.g. heart_rate_mean_1h, bp_systolic_std_6h
 
-Trend Features (6 features):
-├── Linear regression slope over time
-└── Example: heart_rate_trend, bp_systolic_trend
+Trend Features (18 features):
+  First difference + OLS slope (6- and 12-reading windows)
+  e.g. heart_rate_slope_6, bp_systolic_diff
 
 Interaction Features (5 features):
-├── mean_arterial_pressure = (2×diastolic + systolic) / 3
-├── cv_stress_index = heart_rate × bp_systolic
-└── respiratory_efficiency = spo2 / respiratory_rate
+  mean_arterial_pressure    = diastolic + pulse_pressure/3
+  pulse_pressure            = systolic − diastolic
+  cv_stress_index           = (HR/100) × (SBP/120)
+  respiratory_efficiency    = SpO2 / respiratory_rate
 
-Temporal Features (8 features):
-├── hour_of_day (0-23)
-├── day_of_week (0-6)
-├── is_weekend (boolean)
-└── Cyclical encoding (sin/cos for hour)
+Temporal Features (5 features):
+  hour_of_day, hour_sin, hour_cos,
+  day_of_week, is_weekend
 
-Lag Features (42 features):
-└── Previous 1, 2, 3 readings for each vital
+Lag Features (18 features):
+  Previous 1, 2, 3 readings for each vital
 ```
 
-### Model Architecture
+### Model Configuration
 
-**XGBoost Configuration**:
+**XGBoost — final trained configuration**:
 ```python
 XGBClassifier(
-    n_estimators=500,        # Number of trees
-    max_depth=6,             # Tree depth
-    learning_rate=0.01,      # Slow learning prevents overfitting
-    min_child_weight=1,      # Regularization
-    gamma=0.05,              # Pruning threshold
-    subsample=0.8,           # Row sampling
-    colsample_bytree=0.8,    # Feature sampling
-    scale_pos_weight=1,      # SMOTE already balanced
-    eval_metric='aucpr',     # Optimize for PR-AUC
-    n_jobs=-1                # Use all CPU cores
+    n_estimators=200,          # Trained; early stopped at iteration 163
+    max_depth=6,
+    learning_rate=0.05,
+    min_child_weight=1,
+    gamma=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    scale_pos_weight=1,        # SMOTE already balanced classes
+    eval_metric='aucpr',
+    early_stopping_rounds=20,
+    n_jobs=-1
 )
 ```
 
-**SMOTE Balancing**:
+**Patient-level splitting** (prevents data leakage):
 ```
-Before SMOTE:
-├── Deteriorating: 297,847 (37.9%)
-└── Stable: 488,390 (62.1%)
+Train: 91 patients (70%)  →  SMOTE applied  →  976K balanced samples
+Val:   13 patients (10%)  →  used for early stopping
+Test:  26 patients (20%)  →  never seen during training
 
-After SMOTE:
-├── Deteriorating: 488,390 (50%)
-└── Stable: 488,390 (50%)
-```
-
-**Patient-Level Splitting** (prevents data leakage):
-```
-Train: 91 patients (70%)
-Validation: 13 patients (10%)
-Test: 26 patients (20%)
-
-✅ No patient appears in multiple splits!
+✅ No patient appears in multiple splits
 ```
 
 ---
@@ -402,10 +395,9 @@ Test: 26 patients (20%)
 
 ### HIPAA-Style Implementation
 
-**Implemented Foundation**:
-- ✅ RBAC role definitions in `privacy_config.yaml`
-- ✅ Permission checking utilities (`check_permission()`)
-- ✅ Comprehensive audit logging (HIPAA-style trails)
+**Implemented**:
+- ✅ Role-based access control definitions (`privacy_config.yaml`)
+- ✅ Comprehensive audit logging (timestamped, user-tracked)
 - ✅ AES-256 encryption utilities for data at rest
 - ✅ SHA-256 patient ID hashing
 - ✅ TLS-ready API architecture
@@ -413,96 +405,43 @@ Test: 26 patients (20%)
 **Access Control**:
 ```yaml
 Roles:
-  clinician:    # Can view/modify patient data
-    - read_patient_data
-    - write_patient_data
-    - view_predictions
-    - trigger_alerts
-  
-  nurse:        # Limited access
-    - read_patient_data
-    - view_predictions
-    - acknowledge_alerts
-  
-  researcher:   # Anonymized only
-    - read_anonymized_data
-    - train_models
-```
-**Production Requirements** (Not Yet Implemented):
-```
-⚠️ For production deployment, would require:
-- User authentication system (JWT/OAuth2)
-- Active session management
-- API gateway with authentication middleware
-- User management interface
-- Password hashing and secure credential storage
+  clinician:    read/write patient data, view predictions, trigger alerts
+  nurse:        read patient data, view predictions, acknowledge alerts
+  researcher:   anonymized data only, model training
 ```
 
-**Audit Logging**:
-- Every data access logged with timestamp
-- User actions tracked
-- 7-year retention (HIPAA compliant)
-- Searchable audit trail
+**Production Requirements** (not yet implemented):
+```
+⚠️ For real deployment would require:
+- JWT/OAuth2 user authentication
+- Active session management
+- API gateway middleware
+- Password hashing and credential storage
+- Database persistence (currently in-memory)
+```
 
 ---
 
-## 🧪 System Testing
-
-### Comprehensive Test Suite
+## 🧪 Testing
 
 ```bash
 # Unit tests
 pytest tests/test_unit.py -v --cov=src
-# Tests feature engineering, prediction logic, privacy utils
 
 # Integration tests
-python test_complete_system.py
-# End-to-end workflow validation
+python tests/test_complete_system.py
 
 # API tests
-python test_api_complete.py
-# REST endpoint validation
+python tests/test_api_complete.py
 ```
 
 ### Performance Benchmarks
 
-| Operation | Latency | Throughput |
-|-----------|---------|------------|
-| Feature Engineering | 50ms | 20/sec |
-| XGBoost Prediction | 45ms | 22/sec |
-| API Request (E2E) | 380ms | 3/sec |
-| Dashboard Refresh | 2s | - |
-
----
-
-## 🎓 Skills Demonstrated
-
-### Machine Learning
-✅ **Problem Diagnosis**: Identified root cause of poor performance (data quality)  
-✅ **Systematic Debugging**: Iterative threshold tuning (0.45 → 0.30 → 0.25)  
-✅ **Class Imbalance**: SMOTE, class weights, PR-AUC optimization  
-✅ **Time-Series**: Rolling windows, trends, temporal features  
-✅ **Model Selection**: XGBoost vs LSTM trade-offs  
-✅ **Healthcare ML**: Recall > Precision philosophy  
-
-### Data Engineering
-✅ **Data Generation**: Realistic synthetic patient simulator  
-✅ **Feature Engineering**: 6 vitals → 133 features  
-✅ **Pipeline Design**: Patient-level splitting, no data leakage  
-✅ **Quality Control**: Data validation, distribution checks  
-
-### Software Engineering
-✅ **Production API**: FastAPI with health checks, CORS, logging  
-✅ **Testing**: Unit, integration, API tests  
-✅ **Logging**: Structured JSON logs, audit trails  
-✅ **Documentation**: Comprehensive README, code comments  
-✅ **Deployment**: Windows PowerShell scripts, error handling  
-
-### DevOps (Demonstrated)
-✅ **Containerization**: Docker-ready structure  
-✅ **Monitoring**: Logging, performance tracking  
-✅ **Security**: Encryption, access control, audit logs  
-✅ **CI/CD Ready**: GitHub Actions workflow prepared  
+| Operation | Latency |
+|-----------|---------|
+| Feature Engineering | ~50ms |
+| XGBoost Prediction | ~45ms |
+| API Request (E2E) | ~380ms |
 
 ---
 
@@ -510,114 +449,109 @@ python test_api_complete.py
 
 ### Current Limitations
 
-1. **Synthetic Data**:
-   - Controlled patterns, limited edge cases
-   - Real medical data would have more noise, missing values
-   - **Impact**: Performance likely to drop with real data
+1. **Synthetic Data Only**
+   - Controlled patterns; real medical data has more noise and edge cases
+   - Performance likely to change on real-world data
 
-2. **Overfitting Detected**:
-   - Train (0.85) vs Val (0.68) gap indicates overfitting
-   - **Fix**: Feature selection, stronger regularization, more data
+2. **Overfitting Gap**
+   - Train PR-AUC 0.86 vs Val 0.68 — regularization needs strengthening
+   - Fix: feature selection, cross-validation, stronger gamma/lambda
 
-3. **Low Precision (35%)**:
-   - High false alarm rate
-   - **Fix**: Ensemble methods, threshold tuning per patient profile
+3. **Recall at Default Threshold (46.5%)**
+   - Misses roughly half of deterioration events
+   - Fix: threshold tuning per patient profile, ensemble methods
 
-4. **Single Model**:
-   - No ensemble or model comparison
-   - **Fix**: Add Random Forest, ensemble voting
+4. **No Ensemble**
+   - Single XGBoost model only
+   - Fix: XGBoost + Random Forest voting ensemble
 
-5. **Security Implementation**:
-   - RBAC roles defined but not actively enforced
-   - No user authentication system
-   - In-memory storage (no database persistence)
-   - **Fix**: Integrate FastAPI OAuth2, add PostgreSQL, implement session management
+5. **Security Scaffold Only**
+   - RBAC defined but not actively enforced at request level
+   - Fix: FastAPI OAuth2, PostgreSQL, session management
 
-6. **Scalability**:
-   - Single-instance deployment
+6. **Single Instance Deployment**
    - No load balancing
-   - **Fix**: Kubernetes deployment, horizontal pod autoscaling
-   
+   - Fix: Kubernetes HPA already scaffolded in `deployment/`
+
 ### Planned Improvements
 
-- Test on real medical datasets (MIMIC-III, eICU)
-- Implement SHAP for model explainability
-- Add patient-specific thresholds (personalization)
+- SHAP explainability for individual predictions
+- Patient-specific threshold calibration
 - Ensemble: XGBoost + Random Forest
-- Kubernetes deployment
-- Automated retraining pipeline
-- A/B testing framework
-- User Authentication: JWT/OAuth2 integration
-- Database: Persistent storage (currently in-memory)
-- Scalability: Kubernetes deployment, load balancing
-- Real Data Integration: Connection to actual wearable APIs
-- Clinical Validation: Testing on real medical data
+- Test on MIMIC-III / eICU real datasets
+- Automated retraining with drift detection
+- Full JWT authentication layer
+- A/B testing framework for model versions
 
 ---
 
 ## 📚 Tech Stack
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **ML** | XGBoost 3.1.2 | Primary classifier |
-| **Data** | Pandas 2.0.3, NumPy 1.26.4 | Data manipulation |
-| **API** | FastAPI 0.128.0, Uvicorn | REST endpoints |
-| **Dashboard** | Streamlit 1.52.2 | Monitoring UI |
-| **Visualization** | Plotly, Matplotlib, Seaborn | Charts & plots |
-| **Security** | Cryptography 46.0.3 | Encryption |
-| **Imbalance** | imbalanced-learn 0.14.1 | SMOTE |
-| **Logging** | Python logging | Structured logs |
-| **Testing** | pytest 9.0.2 | Unit/integration tests |
+| Component | Technology |
+|-----------|-----------|
+| **ML** | XGBoost 3.1.2 |
+| **Data** | Pandas 2.0.3, NumPy 1.26.4 |
+| **API** | FastAPI 0.128.0, Uvicorn |
+| **Dashboard** | Streamlit 1.52.2 |
+| **Visualization** | Plotly, Matplotlib, Seaborn |
+| **Security** | Cryptography 46.0.3 |
+| **Imbalance** | imbalanced-learn 0.14.1 |
+| **Monitoring** | Prometheus, Grafana |
+| **Testing** | pytest 9.0.2 |
 
 ---
 
-## 📖 Learning Resources
+## 🎓 Skills Demonstrated
 
-**Key Concepts Learned**:
-1. [Class Imbalance in Healthcare ML](https://imbalanced-learn.org)
-2. [Time-Series Feature Engineering](https://towardsdatascience.com)
-3. [PR-AUC vs ROC-AUC](https://machinelearningmastery.com)
-4. [XGBoost Hyperparameter Tuning](https://xgboost.readthedocs.io)
-5. [HIPAA Compliance for ML](https://www.hhs.gov/hipaa)
+### Machine Learning
+✅ Problem diagnosis: traced poor performance to data quality root cause  
+✅ Systematic iteration: 4 documented debugging cycles  
+✅ Class imbalance: SMOTE + PR-AUC optimization  
+✅ Time-series features: rolling windows, slopes, lags  
+✅ Overfitting detection and documentation  
+✅ Healthcare trade-offs: precision vs recall in clinical context  
+
+### Data Engineering
+✅ Synthetic patient simulator with realistic physiology  
+✅ Feature engineering: 6 vitals → 133 features  
+✅ Patient-level splitting to prevent data leakage  
+✅ Kalman filtering for signal smoothing  
+
+### Software Engineering
+✅ Production FastAPI with structured logging  
+✅ Correlation IDs and audit trails  
+✅ Unit, integration, and API tests  
+✅ Docker + Kubernetes deployment scaffold  
 
 ---
 
 ## 💡 Discussion Points
 
 ### What Went Well
-✅ Systematic debugging process (documented 4 iterations)  
-✅ Root cause analysis (identified data quality issue)  
-✅ Production-thinking (logging, security, deployment)  
-✅ Healthcare-specific decisions (recall > precision)  
-✅ Complete documentation of journey  
+✅ Systematic debugging with documented iterations  
+✅ Root cause analysis (data quality → model quality)  
+✅ Production-grade infrastructure thinking  
+✅ Honest documentation of limitations  
+✅ Healthcare-domain awareness  
 
 ### What I'd Do Differently
-🔄 Start with exploratory data analysis (EDA)  
+🔄 Start with EDA before model building  
+🔄 Add SHAP explainability from the start  
 🔄 Implement cross-validation earlier  
-🔄 Add model explainability (SHAP) from start  
 🔄 Test on real data sooner  
-🔄 Ensemble methods for better precision  
-
-### Technical Challenges Solved
-1. **Data Quality Crisis**: 6% → 37% through threshold tuning
-2. **Threshold Calibration**: 5 iterations to find optimal 0.25
-3. **Overfitting Management**: Detected train/val gap, documented trade-offs
-4. **Class Imbalance**: SMOTE + patient-level splitting
-5. **Healthcare Trade-offs**: Justified recall > precision
+🔄 Ensemble from day one  
 
 ---
-## 📚 Documentation
 
-Complete documentation available in the [`docs/`](docs/) directory:
+## 📖 Documentation
 
-- **[System Architecture](docs/ARCHITECTURE.md)** - Complete system design
-- **[Model Evaluation](docs/MODEL_EVALUATION.md)** - Performance analysis
-- **[Data Documentation](docs/DATA_DOCUMENTATION.md)** - Data pipeline
-- **[Dashboard Guide](docs/DASHBOARD_GUIDE.md)** - User manual
-- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production hosting
+- **[System Architecture](docs/ARCHITECTURE.md)**
+- **[Model Evaluation](docs/MODEL_EVALUATION.md)**
+- **[Data Documentation](docs/DATA_DOCUMENTATION.md)**
+- **[Dashboard Guide](docs/DASHBOARD_GUIDE.md)**
+- **[Deployment Guide](docs/DEPLOYMENT.md)**
 
-See [docs/README.md](docs/README.md) for complete documentation index.
-
+---
 
 ## 📞 Contact
 
@@ -631,32 +565,19 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 
 ## ⚠️ Disclaimer
 
-**Educational/Portfolio Project Only**
+**Educational / Portfolio Project Only**
 
-This system is:
-- ❌ Not validated on real patient data
-- ❌ Not FDA approved or clinically validated
-- ❌ Not intended for actual medical use
-- ✅ Built to demonstrate ML engineering skills
-
-For production healthcare AI:
-- Requires clinical validation studies
-- Needs FDA approval (Class II/III medical device)
-- Must pass HIPAA security audit
-- Requires continuous monitoring and retraining
-- Needs clinical oversight and human-in-the-loop
+- ❌ Not validated on real patient data  
+- ❌ Not FDA approved or clinically validated  
+- ❌ Not intended for actual medical use  
+- ✅ Built to demonstrate ML engineering skills  
 
 ---
 
-## 🏆 Key Takeaways
+## 🏆 Key Takeaway
 
-> "This project taught me that **data quality matters more than model complexity**, **systematic debugging beats intuition**, and **healthcare ML requires different trade-offs** than typical ML applications."
-
-**Most Important Learning**:  
-The journey from 0.30 → 0.65 PR-AUC wasn't about finding a better algorithm—it was about **understanding the problem**, **fixing the data**, and **making informed trade-offs** between recall and precision.
+> "The journey from 0.30 → 0.695 PR-AUC wasn't about finding a better algorithm. It was about understanding the problem, fixing the data quality, and making informed trade-offs — which is what real ML engineering looks like."
 
 ---
 
-**Built as part of ML learning journey | Brototype AI/ML Program | January 2025**
-
-*Star ⭐ this repo if you found the debugging journey helpful!*
+**Built as part of ML learning journey | Brototype AI/ML Program | 2025–2026**

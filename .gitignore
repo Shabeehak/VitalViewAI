@@ -146,7 +146,7 @@ data/raw/*.csv
 data/interim/*.csv
 
 # Large model files - not pushing to GitHub
-models/*.pkl
+# models/*.pkl
 models/*.h5
 models/*.joblib
 

@@ -327,10 +327,10 @@ XGBClassifier(
 )
 
 # Performance
-Training PR-AUC: 0.85
-Test PR-AUC: 0.65
-Recall: 91%
-Precision: 35%
+Training PR-AUC: 0.86
+Test PR-AUC: 0.695
+Recall: 46.5%
+Precision: 71.8%
 ```
 
 ---

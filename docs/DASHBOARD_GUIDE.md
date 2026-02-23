@@ -616,7 +616,7 @@ Risk Score: 0-100% (probability × 100)
 2. **Wait 5 minutes** for data accumulation
 3. **Trigger 1-2 events** to show alerts
 4. **Show trend charts** to demonstrate monitoring
-5. **Explain trade-offs** (91% recall, 35% precision)
+5. **Explain trade-offs** (71.8% precision, 46.5% recall at default threshold)
 
 ### For Development
 
@@ -631,18 +631,6 @@ Risk Score: 0-100% (probability × 100)
 2. **Set up alerts** (email/SMS for critical events)
 3. **Monitor system health** regularly
 4. **Regular model retraining** with new data
-
----
-
-## 📸 Screenshot Guide
-
-**For portfolio/documentation:**
-
-1. **Overview Page**: Show multiple patients with alerts
-2. **Patient Details**: Show risk gauge at 85%+ (triggered event)
-3. **Trend Charts**: Show 6-hour vitals with visible patterns
-4. **Event Trigger**: Before/after screenshots of deterioration
-5. **System Status**: Show all services online (green)
 
 ---
 

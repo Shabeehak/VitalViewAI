@@ -50,28 +50,28 @@ See [Model Performance Journey](#-model-performance-journey) for details.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                 Data Generation Layer                         │
+│                 Data Generation Layer                        │
 │  • 130 patients × 30 days × 288 readings/day = 1.1M samples  │
 │  • Realistic vital signs with circadian rhythms              │
 │  • Controlled deterioration events (hypertension, hypoxia)   │
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
-│              Feature Engineering Pipeline                     │
+│              Feature Engineering Pipeline                    │
 │  • 133 features from 6 base vitals                           │
 │  • Rolling stats (1h, 6h, 12h windows)                       │
 │  • Trends, interactions, temporal patterns                   │
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
-│                 XGBoost Classifier                            │
+│                 XGBoost Classifier                           │
 │  • 200 trees (early stopped at iteration 163)                │
 │  • SMOTE balancing + patient-level splitting                 │
 │  • Data-driven threshold optimization                        │
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
-│            Production API + Dashboard                         │
+│            Production API + Dashboard                        │
 │  • FastAPI real-time prediction server                       │
 │  • Streamlit monitoring dashboard                            │
 │  • Comprehensive logging and audit trails                    │

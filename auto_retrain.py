@@ -87,7 +87,7 @@ class DataDriftDetector:
             max_feature_drift = max(feature_drifts.values()) if feature_drifts else 0
             overall_drift = max(class_drift, max_feature_drift)
             
-            drift_detected = overall_drift > threshold
+            drift_detected = bool(overall_drift > threshold)
             
             results = {
                 'drift_detected': drift_detected,

@@ -411,7 +411,7 @@ Note: Validation and test sets remain unchanged!
 
 | Metric | Without SMOTE | With SMOTE | Improvement |
 |--------|---------------|------------|-------------|
-| Recall | 46% | 91% | +45% ✅ |
+| Recall | ~40% | 46.5% | +6.5% ✅ |
 | PR-AUC | 0.52 | 0.65 | +0.13 ✅ |
 | F1-Score | 0.48 | 0.56 | +0.08 ✅ |
 

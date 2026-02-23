@@ -1,4 +1,12 @@
 # 🏥 VitalViewAI - AI-Powered Health Monitoring System For Chronic Patients
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-3.1.2-FF6600?style=flat)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?style=flat&logo=fastapi&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.52-FF4B4B?style=flat&logo=streamlit&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)
+![PRauc](https://img.shields.io/badge/PR--AUC-0.695-28a745?style=flat)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-46E3B7?style=flat&logo=render&logoColor=white)](https://vitalviewai-n7su.onrender.com)
 
 **Real-time deterioration prediction for chronic care patients using ML**
 

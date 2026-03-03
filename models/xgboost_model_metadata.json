@@ -1,7 +1,7 @@
 {
   "model_type": "XGBoost",
-  "trained_date": "2026-01-25T18:42:13.801050",
-  "training_id": "xgb_20260125_182908",
+  "trained_date": "2026-03-02T15:51:48.866896",
+  "training_id": "xgb_20260302_153530",
   "feature_names": [
     "heart_rate",
     "bp_systolic",
@@ -140,7 +140,18 @@
   "use_smote": true,
   "class_weight_ratio": null,
   "performance": {
-    "roc_auc": 0.6975241746433274,
-    "pr_auc": 0.6529760712319229
-  }
+    "pr_auc": 0.5875808296691337,
+    "roc_auc": 0.6725726615268632,
+    "precision": 0.6869971732985432,
+    "recall": 0.32818728332705766,
+    "f1": 0.44418279749404704,
+    "threshold": 0.5,
+    "tp": 25276,
+    "tn": 144747,
+    "fp": 11516,
+    "fn": 51741,
+    "test_samples": 233280,
+    "test_patients": 27
+  },
+  "n_features": 133
 }

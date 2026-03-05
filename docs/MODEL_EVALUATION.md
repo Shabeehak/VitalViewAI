@@ -100,7 +100,7 @@ Mean difference between classes:
 
 ### Outlier Detection
 
-![Box Plots](../reports/eda/03_box_plots_outliers.png)
+![Box Plots](../reports/eda/03_boxplots_outliers.png)
 
 Outliers defined as values beyond 3 standard deviations from the mean.
 Rate < 0.5% across all vitals — no removal required. Synthetic data is

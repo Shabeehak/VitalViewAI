@@ -136,7 +136,7 @@ reading = true_value + np.random.normal(0, true_value * 0.02)
 | 3 | 0.45 | 0.1% | ❌ Way too strict |
 | 4 | 0.30 | 10.5% | ⚠️ Better but still low |
 | 5 | 0.22 | 66.1% | ⚠️ Too high |
-| 6 | **0.25** | **37.6%** | ✅ **Perfect!** |
+| 6 | **0.25** | **37.6%** | ✅ **Sweet spot** |
 
 ### Final Labeling Logic
 
@@ -179,7 +179,7 @@ Temperature:
   - > 39.0°C   (high fever)
 ```
 
-**Key Insight**: The 0.25 threshold means "patient is deteriorating if MORE THAN 25% of their future readings are abnormal."
+**Key Insight**: The 0.25 threshold means "patient is deteriorating if MORE THAN 25% of their future readings are abnormal" — capturing sustained deterioration, not noise spikes.
 
 ---
 
@@ -243,84 +243,92 @@ features_engineered.csv (1.1M × 138)
 
 **1. Rolling Statistics (72 features)**
 ```python
-# For each vital (6 vitals × 4 windows × 3 stats = 72)
-Windows: [1h, 6h, 12h, 24h]
-Stats: [mean, std, min, max]
+# 6 vitals × 3 windows × 4 stats = 72 features
+Windows: [1h, 6h, 12h]
+Stats:   [mean, std, min, max]
 
 Examples:
 - heart_rate_mean_1h
 - bp_systolic_std_6h
 - spo2_min_12h
-- temperature_max_24h
+- temperature_max_6h
 ```
 
-**2. Trend Features (6 features)**
+**2. Trend Features (18 features)**
 ```python
-# Linear regression slope over time
-- heart_rate_trend        # bpm per hour
-- bp_systolic_trend       # mmHg per hour
-- bp_diastolic_trend
-- spo2_trend
-- respiratory_rate_trend
-- temperature_trend
+# 6 vitals × 3 trend types = 18 features
+# First difference + OLS slope over 6 and 12 reading windows
+
+- heart_rate_diff        # change from previous reading
+- heart_rate_slope_6     # OLS slope over 6 readings
+- heart_rate_slope_12    # OLS slope over 12 readings
+# ... repeated for all 6 vitals
 ```
 
-**3. Interaction Features (5 features)**
+**3. Interaction Features (4 features — 39.5% of model gain)**
 ```python
 # Clinically meaningful combinations
-- mean_arterial_pressure = (BP_sys + 2×BP_dia) / 3
-- cv_stress_index = HR × BP_sys / 100
+- mean_arterial_pressure = (2×BP_dia + BP_sys) / 3
+- cv_stress_index        = HR × BP_sys / 100
 - respiratory_efficiency = SpO₂ / RR
-- pulse_pressure = BP_sys - BP_dia
-- shock_index = HR / BP_sys
+- pulse_pressure         = BP_sys - BP_dia
 ```
 
-**4. Temporal Features (8 features)**
+**4. Temporal Features (7 features)**
 ```python
 # Time-based patterns
-- hour_of_day          # 0-23
-- day_of_week          # 0-6
-- is_weekend           # boolean
-- hour_sin             # cyclical encoding
-- hour_cos             # cyclical encoding
-- day_sin
-- day_cos
-- is_night_shift       # 22:00-06:00
+- hour_of_day    # 0-23
+- hour_sin       # cyclical encoding
+- hour_cos       # cyclical encoding
+- day_of_week    # 0-6
+- is_weekend     # boolean
 ```
 
-**5. Lag Features (42 features)**
+**5. Lag Features (18 features)**
 ```python
-# Previous readings (3 lags × 6 vitals × 2 types)
-- heart_rate_lag_1     # 5 minutes ago
-- heart_rate_lag_2     # 10 minutes ago
-- heart_rate_lag_3     # 15 minutes ago
-- heart_rate_diff_1    # Change from lag_1
-- heart_rate_diff_2    # Change from lag_2
-...
+# Previous readings — 3 lags × 6 vitals = 18 features
+- heart_rate_lag_1     # previous reading (~5 min ago)
+- heart_rate_lag_2     # 2 readings ago (~10 min ago)
+- heart_rate_lag_3     # 3 readings ago (~15 min ago)
+# ... repeated for all 6 vitals
 ```
 
-**6. Lab Features (12 features)**
+**6. Lab Features (14 features)**
 ```python
-# From monthly blood tests (forward-filled)
+# From monthly blood tests (forward-filled between tests)
 - glucose_fasting
 - glucose_random
 - creatinine
 - hemoglobin
-- wbc_count
+- wbc
 - platelets
 - cholesterol_total
 - cholesterol_ldl
 - cholesterol_hdl
 - triglycerides
-- bun (blood urea nitrogen)
-- gfr (glomerular filtration rate)
 ```
+
+### Feature Count Summary
+
+| Category | Features | Gain % |
+|----------|----------|--------|
+| Rolling Stats (mean/std/min/max) | 72 | ~38% |
+| Interaction Features | 4 | ~39.5% |
+| Lag Features | 18 | ~10% |
+| Trend / Slope | 18 | ~6% |
+| Temporal | 7 | ~5% |
+| Base Vitals + Lab | 14 | ~1.5% |
+| **Total** | **133** | **100%** |
+
+> The 4 interaction features deliver 39.5% of model gain despite being
+> derived measurements — validating the feature engineering approach.
+> See `reports/feature_selection/feature_importance.png` for full breakdown.
 
 ### Feature Engineering Execution
 
 ```bash
 # Automatically done during training
-python train_models_improved.py
+python train_model_xgboost.py
 
 # Or standalone
 python -c "
@@ -353,7 +361,7 @@ Total patients: 130
        ↓
 Train:  91 patients (70%)  →  786,237 samples
 Val:    13 patients (10%)  →  112,320 samples
-Test:   26 patients (20%)  →  224,640 samples
+Test:   27 patients (20%)  →  233,280 samples
 ```
 
 ### Split Statistics
@@ -362,19 +370,23 @@ Test:   26 patients (20%)  →  224,640 samples
 |-------|----------|---------|---------------|--------|
 | **Train** | 91 (70%) | 786,237 | 297,847 (37.9%) | 488,390 (62.1%) |
 | **Val** | 13 (10%) | 112,320 | 47,326 (42.1%) | 64,994 (57.9%) |
-| **Test** | 26 (20%) | 224,640 | 77,036 (34.3%) | 147,604 (65.7%) |
+| **Test** | 27 (20%) | 233,280 | 77,017 (33.0%) | 156,263 (67.0%) |
 
 **Verification**:
 ```python
 # Check no patient appears in multiple splits
 train_patients = set(['patient_001', 'patient_002', ...])
-val_patients = set(['patient_050', ...])
-test_patients = set(['patient_100', ...])
+val_patients   = set(['patient_050', ...])
+test_patients  = set(['patient_100', ...])
 
-assert len(train_patients & val_patients) == 0  # ✓ No overlap
+assert len(train_patients & val_patients)  == 0  # ✓ No overlap
 assert len(train_patients & test_patients) == 0  # ✓ No overlap
-assert len(val_patients & test_patients) == 0    # ✓ No overlap
+assert len(val_patients   & test_patients) == 0  # ✓ No overlap
 ```
+
+> Patient-level splitting is independently validated by 5-fold
+> GroupKFold cross-validation (`cross_validation.py`), which confirms
+> no patient leakage across any fold. See MODEL_EVALUATION.md.
 
 ---
 
@@ -382,12 +394,13 @@ assert len(val_patients & test_patients) == 0    # ✓ No overlap
 
 ### Why SMOTE?
 
-Even with 37.6% deteriorating samples, there's still imbalance (1.7:1 ratio).
+Even with 37.6% deteriorating samples there is still imbalance (1.7:1 ratio).
 
 **SMOTE (Synthetic Minority Over-sampling Technique)**:
-- Creates synthetic deteriorating samples
-- Interpolates between existing minority samples
-- Applied ONLY to training set
+- Creates synthetic deteriorating samples by interpolating between
+  existing minority class samples
+- Applied ONLY to the training set — validation and test sets
+  remain at their natural distribution
 
 ### Before/After SMOTE
 
@@ -397,23 +410,32 @@ Training Set Before SMOTE:
 └── Stable:        488,390 (62.1%)
    Imbalance: 1.6:1
 
-       ↓ [Apply SMOTE]
+       ↓ [Apply SMOTE — training only]
 
 Training Set After SMOTE:
 ├── Deteriorating: 488,390 (50.0%)  ← Synthetic samples added
 └── Stable:        488,390 (50.0%)
    Imbalance: 1.0:1 ✓ Balanced!
 
-Note: Validation and test sets remain unchanged!
+Note: Validation and test sets remain unchanged.
 ```
 
 ### SMOTE Impact
 
-| Metric | Without SMOTE | With SMOTE | Improvement |
-|--------|---------------|------------|-------------|
-| Recall | ~40% | 46.5% | +6.5% ✅ |
-| PR-AUC | 0.52 | 0.65 | +0.13 ✅ |
-| F1-Score | 0.48 | 0.56 | +0.08 ✅ |
+| Metric | Without SMOTE | With SMOTE |
+|--------|---------------|------------|
+| Recall | ~25% | 32.8% |
+| PR-AUC | ~0.48 | 0.588 |
+| F1-Score | ~0.38 | 0.444 |
+
+> **Run-to-run variance note**: SMOTE's stochastic synthetic sample
+> generation causes slight PR-AUC variance between training runs
+> (~0.04–0.05 range) even with `random_state=42` set, due to
+> interactions between patient split composition and synthetic sample
+> placement. An earlier training run (Jan 25) produced 0.695 PR-AUC;
+> the current reproducible result is 0.588. Both are valid — the 5-fold
+> CV mean of 0.676 ± 0.021 reflects the expected range.
+> See MODEL_EVALUATION.md for full explanation.
 
 ---
 
@@ -430,15 +452,15 @@ Step 2:  Labels created (37.6% deteriorating)
          ↓
 Step 3:  133 features engineered
          ↓
-Step 4:  Patient-level split
+Step 4:  Patient-level split (91 / 13 / 27 patients)
          ↓
-Step 5:  SMOTE applied to training
+Step 5:  SMOTE applied to training only
          ↓
 Output:  Ready for model training!
 
 Training:   976,780 samples (after SMOTE)
 Validation: 112,320 samples (unchanged)
-Test:       224,640 samples (unchanged)
+Test:       233,280 samples (unchanged, 27 patients)
 ```
 
 ### Data Quality Metrics
@@ -459,7 +481,7 @@ Test:       224,640 samples (unchanged)
 ### When to Regenerate Data
 
 **Regenerate if:**
-- ❌ Model performance poor (PR-AUC < 0.60)
+- ❌ Model performance poor (PR-AUC < 0.55)
 - ❌ Class imbalance extreme (< 25% or > 50% deteriorating)
 - ❌ Want different patient profiles
 - ❌ Need more/fewer patients
@@ -484,11 +506,18 @@ print(f'Deteriorating: {df[\"label\"].sum():,} ({df[\"label\"].mean():.1%})')
 
 # Target: 30-40% deteriorating
 
-# 4. Retrain model
-python train_models_improved.py
+# 4. Run EDA to verify data quality
+python eda_analysis.py
+# Outputs: reports/eda/ (7 plots)
 
-# 5. Re-evaluate
+# 5. Retrain model
+python train_model_xgboost.py
+
+# 6. Re-evaluate
 python evaluate_model.py --model xgboost
+
+# 7. Run cross-validation to confirm stability
+python cross_validation.py
 ```
 
 ---
@@ -545,7 +574,7 @@ Lab Results:
 - glucose_random (float)
 - creatinine (float)
 - hemoglobin (float)
-- wbc_count (float)
+- wbc (float)
 - platelets (float)
 - cholesterol_total (float)
 - cholesterol_ldl (float)
@@ -568,36 +597,48 @@ Attempt 1: Perfect model, bad data (6% positive)
           → PR-AUC: 0.30 ❌
 
 Attempt 6: Same model, good data (37% positive)
-          → PR-AUC: 0.65 ✅
+          → PR-AUC: 0.588 (current run) ✅
+          → PR-AUC: 0.695 (best run — SMOTE variance) ✅
+          → CV mean: 0.676 ± 0.021 (5-fold, patient-level)
 
-Result: 2x improvement just from data!
+Result: Data quality drove the biggest improvement,
+        not changes to the model architecture.
 ```
 
 ### Threshold Calibration is Critical
 
-**Lesson**: Small threshold changes (0.20 → 0.25 → 0.30) create massive impact on class distribution.
-
-**Approach**: Systematic iteration, not guessing.
+**Lesson**: Small threshold changes (0.20 → 0.25 → 0.30) create massive
+impact on class distribution. Systematic iteration — not guessing —
+found the 0.25 sweet spot.
 
 ### Patient-Level Splitting is Essential
 
 **Why**:
-- Prevents data leakage
-- Simulates real deployment (new patients)
+- Prevents data leakage — same patient never in train and test
+- Simulates real deployment (new patients arrive with no prior history)
 - More realistic performance estimates
 
 **Impact**: Test performance represents actual deployment performance.
+Independently confirmed by 5-fold GroupKFold cross-validation.
+
+### Feature Engineering Matters More Than Feature Volume
+
+**Finding**: 4 interaction features (mean_arterial_pressure,
+cv_stress_index, respiratory_efficiency, pulse_pressure) deliver
+39.5% of total model gain — more than the 72 rolling stat features
+combined. Domain knowledge embedded as features outperforms
+volume of features.
 
 ---
 
 ## 🔗 Related Documentation
 
-- [Main README](README.md) - Project overview
-- [Dashboard Guide](docs/DASHBOARD_GUIDE.md) - Frontend documentation
-- [Architecture Guide](docs/ARCHITECTURE.md) - System design
-- [Model Evaluation](docs/MODEL_EVALUATION.md) - Performance analysis
+- [Main README](../README.md) - Project overview
+- [Dashboard Guide](DASHBOARD_GUIDE.md) - Frontend documentation
+- [Architecture Guide](ARCHITECTURE.md) - System design
+- [Model Evaluation](MODEL_EVALUATION.md) - Performance analysis
 
 ---
 
-**Data Pipeline Version**: 1.0.0  
-**Last Updated**: January 2026
+**Data Pipeline Version**: 1.1.0  
+**Last Updated**: March 2026

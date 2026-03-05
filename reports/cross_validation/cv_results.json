@@ -1,0 +1,63 @@
+{
+  "method": "GroupKFold (patient-level \u2014 no data leakage)",
+  "n_splits": 5,
+  "n_features": 133,
+  "smote": "Applied inside each fold on training data only",
+  "summary": {
+    "pr_auc_mean": 0.6762081921545111,
+    "pr_auc_std": 0.02061503753934208,
+    "pr_auc_min": 0.6485584207073726,
+    "pr_auc_max": 0.7049874199525147,
+    "roc_auc_mean": 0.7143179904947452,
+    "roc_auc_std": 0.00931777308576925
+  },
+  "fold_results": [
+    {
+      "fold": 1,
+      "train_patients": 104,
+      "test_patients": 26,
+      "train_samples": 898557,
+      "test_samples": 224640,
+      "pr_auc": 0.7049874199525147,
+      "roc_auc": 0.7216415212012398
+    },
+    {
+      "fold": 2,
+      "train_patients": 104,
+      "test_patients": 26,
+      "train_samples": 898557,
+      "test_samples": 224640,
+      "pr_auc": 0.6485584207073726,
+      "roc_auc": 0.701117137519715
+    },
+    {
+      "fold": 3,
+      "train_patients": 104,
+      "test_patients": 26,
+      "train_samples": 898558,
+      "test_samples": 224639,
+      "pr_auc": 0.672161795051087,
+      "roc_auc": 0.7059586422302323
+    },
+    {
+      "fold": 4,
+      "train_patients": 104,
+      "test_patients": 26,
+      "train_samples": 898558,
+      "test_samples": 224639,
+      "pr_auc": 0.6936591208911941,
+      "roc_auc": 0.7256188942168597
+    },
+    {
+      "fold": 5,
+      "train_patients": 104,
+      "test_patients": 26,
+      "train_samples": 898558,
+      "test_samples": 224639,
+      "pr_auc": 0.6616742041703875,
+      "roc_auc": 0.7172537573056793
+    }
+  ],
+  "stability": "moderate",
+  "interpretation": "Model achieves 0.6762 \u00b1 0.0206 PR-AUC across 5 patient groups, confirming generalisation to unseen patients."
+}

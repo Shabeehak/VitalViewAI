@@ -616,7 +616,8 @@ Risk Score: 0-100% (probability × 100)
 2. **Wait 5 minutes** for data accumulation
 3. **Trigger 1-2 events** to show alerts
 4. **Show trend charts** to demonstrate monitoring
-5. **Explain trade-offs** (71.8% precision, 46.5% recall at default threshold)
+5. **Explain trade-offs**: 68.7% precision, 32.8% recall at default
+   threshold (0.5) — lower to 0.3 for higher recall (~85–91%)
 
 ### For Development
 
@@ -636,7 +637,7 @@ Risk Score: 0-100% (probability × 100)
 
 ## 🔗 Related Documentation
 
-- [Main README](README.md) - Project overview
+- [Main README](../README.md) - Project overview
 - [Data Documentation](DATA_DOCUMENTATION.md) - Data pipeline
 - [Architecture Guide](ARCHITECTURE.md) - System design
 - [Model Evaluation](MODEL_EVALUATION.md) - Performance metrics
@@ -646,4 +647,4 @@ Risk Score: 0-100% (probability × 100)
 **Questions?** Check the troubleshooting section or open an issue on GitHub.
 
 **Dashboard Version**: 1.0.0  
-**Last Updated**: January 2026
+**Last Updated**: March 2026

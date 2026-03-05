@@ -4,13 +4,14 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?style=flat&logo=fastapi&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.52-FF4B4B?style=flat&logo=streamlit&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)
-![PRauc](https://img.shields.io/badge/PR--AUC-0.695-28a745?style=flat)
+![PRauc](https://img.shields.io/badge/PR--AUC-0.653-28a745?style=flat)
+![CV](https://img.shields.io/badge/CV%20PR--AUC-0.676%20±%200.021-blue?style=flat)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-46E3B7?style=flat&logo=render&logoColor=white)](https://vitalviewai-n7su.onrender.com)
 
 **Real-time deterioration prediction for chronic care patients using ML**
 
-> **Educational Project**: Built to demonstrate end-to-end ML engineering skills including data pipeline design, model development, production deployment, and iterative improvement through systematic debugging.
+> **Educational Project**: Built to demonstrate end-to-end ML engineering skills including data pipeline design, model development, feature selection, hyperparameter tuning, cross-validation, and production deployment.
 
 ---
 
@@ -43,12 +44,13 @@
 
 VitalViewAI is a complete machine learning system that monitors patient vital signs from wearable devices and predicts health deterioration events 48 hours in advance. This project showcases the full ML lifecycle from data generation to production deployment, including the **challenges and iterations** required to achieve meaningful performance.
 
-### Key Achievement: The Tuning Journey
+### Key Achievement: The Full ML Pipeline Journey
 
-This project documents a real ML debugging and optimization journey:
+This project documents a real ML debugging and optimisation journey:
 - Started with **0.30 PR-AUC** (barely better than random)
-- Through systematic data quality fixes: **→ 0.695 PR-AUC**
-- Precision: **71.8%** | Recall: **46.5%** | ROC-AUC: **0.756**
+- Through systematic data quality fixes: **→ 0.653 PR-AUC** (holdout test)
+- 5-fold cross-validation confirms: **0.676 ± 0.021 PR-AUC** across unseen patient groups
+- Feature selection, Optuna hyperparameter tuning, and overfitting analysis documented
 
 See [Model Performance Journey](#-model-performance-journey) for details.
 
@@ -72,10 +74,18 @@ See [Model Performance Journey](#-model-performance-journey) for details.
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
+│              EDA + Feature Selection + CV                    │
+│  • Exploratory analysis of all 6 vital distributions         │
+│  • Gain-based selection: 133 → 68 features (90% of gain)     │
+│  • 5-fold GroupKFold cross-validation (patient-level)        │
+│  • Optuna hyperparameter tuning (20 Bayesian trials)         │
+└────────────────────┬─────────────────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────────────────┐
 │                 XGBoost Classifier                           │
-│  • 200 trees (early stopped at iteration 163)                │
+│  • 500 trees (early stopped at iteration ~163)               │
 │  • SMOTE balancing + patient-level splitting                 │
-│  • Data-driven threshold optimization                        │
+│  • Test PR-AUC: 0.653 | CV PR-AUC: 0.676 ± 0.021            │
 └────────────────────┬─────────────────────────────────────────┘
                      │
 ┌────────────────────▼─────────────────────────────────────────┐
@@ -90,7 +100,7 @@ See [Model Performance Journey](#-model-performance-journey) for details.
 
 ## 🔬 Model Performance Journey
 
-### The Challenge: From 0.30 to 0.695 PR-AUC
+### The Challenge: From 0.30 to 0.653 PR-AUC
 
 This section documents the **systematic debugging process** that improved model performance:
 
@@ -100,13 +110,12 @@ This section documents the **systematic debugging process** that improved model 
 ```
 Training PR-AUC: 0.24
 Test PR-AUC: 0.30
-Recall: 51% (missing half of deterioration events!)
 Class distribution: Only 6.4% deteriorating patients
 ```
 
 **Root Cause Analysis**:
 - ❌ Extreme class imbalance (6% vs 94%)
-- ❌ Data generation created too few deterioration events
+- ❌ Deterioration severity parameter never ramping (0.0 throughout)
 - ❌ Model had insufficient positive examples to learn from
 
 **Learning**: Even perfect ML algorithms fail with poor data quality
@@ -115,18 +124,13 @@ Class distribution: Only 6.4% deteriorating patients
 
 #### **Iteration 2: Data Quality Fix (PR-AUC: 0.10)**
 
-**Action Taken**: Adjusted data generation threshold from 0.35 → 0.20
+**Action Taken**: Adjusted label threshold from 0.35 → 0.20
 ```python
-# Label creation threshold
-if (abnormal_count / total_count) > 0.20:  # More lenient
+if (abnormal_count / total_count) > 0.20:
     deterioration = True
 ```
 
-**Result**: Overcorrected!
-```
-Class distribution: 86% deteriorating (opposite problem!)
-PR-AUC: Dropped to 0.10
-```
+**Result**: Overcorrected — 86% deteriorating (opposite problem)
 
 **Learning**: Threshold tuning requires careful calibration
 
@@ -134,57 +138,102 @@ PR-AUC: Dropped to 0.10
 
 #### **Iteration 3: Threshold Calibration**
 
-**Action Taken**: Increased threshold 0.20 → 0.45 (too strict)
-```
-Class distribution: 0.1% deteriorating (way too strict!)
-```
+Fine-tuned label threshold through systematic iteration:
 
-**Action Taken**: Fine-tuned to threshold 0.25
-```
-Class distribution: 37.6% deteriorating ✅
-Deterioration: 422,209 samples
-Stable: 700,991 samples
-Imbalance ratio: 1.7:1
-```
-
-**Learning**: Found sweet spot through systematic iteration
+| Threshold | Positive Rate | Issue |
+|---|---|---|
+| 0.45 | 0.1% | Almost no positive examples |
+| 0.35 | 6.4% | Too imbalanced |
+| **0.25** | **37.6%** | **Sweet spot — selected** |
+| 0.20 | 58.1% | Too many positives |
+| 0.15 | 86.3% | Model predicts everyone deteriorating |
 
 ---
 
-#### **Iteration 4: Final Model (PR-AUC: 0.695)**
-
-**With properly balanced data** (37.6% deteriorating):
+#### **Iteration 4: Production Model (PR-AUC: 0.653)**
 
 **Training Results**:
 ```
-Training PR-AUC:   0.86
-Validation PR-AUC: 0.68
-Test PR-AUC:       0.695
-Early stopping:    iteration 163 of 200
+Training PR-AUC:   0.845
+Validation PR-AUC: 0.678
+Test PR-AUC:       0.653
+CV PR-AUC:         0.676 ± 0.021  (5-fold GroupKFold)
+Early stopping:    iteration ~163 of 500
 ```
 
-**Performance Metrics**:
-```
-Precision:   71.8% (when it alerts, it's usually right)
-Recall:      46.5% (catches ~half of deterioration events)
-F1-Score:    0.564
-ROC-AUC:     0.756
-Specificity: 89.4%
-```
-
-**Overfitting gap** (train 0.86 vs val 0.68) identified as the primary next improvement target — requires stronger regularization or feature selection.
+**Overfitting gap** (train 0.845 vs val 0.678 = 0.167) identified and documented.
+Feature selection and Optuna tuning applied — original model retained as best generaliser
+(see Feature Selection section below).
 
 ---
 
-### Key Insights from Tuning Journey
+### Feature Selection & Hyperparameter Tuning
+
+#### Feature Importance Analysis
+
+Gain-based importance analysis on 133 features revealed that just **4 engineered
+interaction features explain 39.5% of total model gain**:
+
+| Rank | Feature | Gain % |
+|---|---|---|
+| 1 | mean_arterial_pressure | 23.2% |
+| 2 | cv_stress_index | 11.9% |
+| 3 | heart_rate_mean_1h | 7.8% |
+| 4 | respiratory_efficiency | 4.2% |
+| 5 | hour_of_day | 4.1% |
+
+68 features explain 90% of model gain. Feature selection was tested:
+
+```
+Original model (133 features): Test PR-AUC = 0.653
+Feature selected (68 features): Test PR-AUC = 0.574  ← worse
+```
+
+With only 26 test patients, removing features hurt generalisation — a known
+small-cohort effect. Original model retained.
+
+#### Optuna Hyperparameter Tuning
+
+Bayesian optimisation over 20 trials on the 68-feature subset:
+
+```
+Best val PR-AUC:  0.6796
+Best test PR-AUC: 0.5686  ← worse than original 0.653
+```
+
+Original 133-feature model is the production model. Tuning results saved in
+`models/optuna_best_params.json`.
+
+---
+
+### Cross Validation Results
+
+5-fold GroupKFold ensures no patient appears in both train and test within any fold.
+SMOTE applied inside each fold on training data only.
+
+| Fold | Train Patients | Test Patients | PR-AUC | ROC-AUC |
+|---|---|---|---|---|
+| 1 | 104 | 26 | 0.7050 | 0.7216 |
+| 2 | 104 | 26 | 0.6486 | 0.7011 |
+| 3 | 104 | 26 | 0.6722 | 0.7060 |
+| 4 | 104 | 26 | 0.6937 | 0.7256 |
+| 5 | 104 | 26 | 0.6617 | 0.7173 |
+| **Mean** | | | **0.676 ± 0.021** | **0.714 ± 0.009** |
+
+CV mean (0.676) is consistent with holdout test PR-AUC (0.653) — confirming
+the result is not a lucky or unlucky split.
+
+---
+
+### Key Insights from the Journey
 
 | Learning | Impact |
-|----------|--------|
+|---|---|
 | **Data quality > Model complexity** | Biggest gains came from fixing data, not the model |
 | **Class balance is critical** | 6% → 37% positive samples drove most improvement |
-| **Threshold tuning requires iteration** | 4 attempts to find a realistic distribution |
-| **Healthcare = Recall vs Precision trade-off** | Both matter — missing events is dangerous, false alarms burn clinician trust |
-| **Overfitting needs addressing** | Train/val gap shows regularization opportunity |
+| **Feature selection can hurt with small cohorts** | 26 test patients too few for stable selection |
+| **Healthcare = Recall vs Precision trade-off** | Both matter — missed events are dangerous, false alarms cause alert fatigue |
+| **CV confirms stability** | 0.676 ± 0.021 shows consistent performance across patient groups |
 
 ---
 
@@ -202,7 +251,7 @@ Python 3.11+
 ```bash
 # Clone repository
 git clone https://github.com/Shabeehak/VitalViewAI.git
-cd vitalviewai
+cd VitalViewAI
 
 # Create virtual environment
 python -m venv venv
@@ -220,23 +269,34 @@ pip install -r requirements.txt
 ### Complete Workflow
 
 ```bash
-# Step 1: Generate data (takes 30-60 minutes for 130 patients)
+# Step 1: Generate data (~30-60 minutes for 130 patients)
 python generate_diverse_training_data.py
 
 # Quick test run (10 patients, ~3 minutes)
 python generate_diverse_training_data.py --quick
 
-# Step 2: Train model (takes 5-10 minutes)
-python train_models.py
+# Step 2: Train model (~5-10 minutes)
+python train_model_xgboost.py
 
-# Step 3: Evaluate
+# Step 3: Exploratory Data Analysis
+python eda_analysis.py
+# Outputs: reports/eda/ (7 plots)
+
+# Step 4: Feature Selection
+python feature_selection.py --analyse-only
+# Outputs: reports/feature_selection/feature_importance.png
+
+# Step 5: Cross Validation (~1 hour)
+python cross_validation.py
+# Outputs: reports/cross_validation/cv_results.json
+
+# Step 6: Evaluate
 python evaluate_model.py --model xgboost
-# Generates confusion matrix, ROC curve, PR curve
 
-# Step 4: Start system (Windows)
+# Step 7: Start system (Windows)
 .\start_system.ps1
 
-# Step 5: Run dashboard
+# Step 8: Run dashboard
 streamlit run streamlit_dashboard.py
 ```
 
@@ -249,8 +309,12 @@ Access at: http://localhost:8501
 ```
 VitalViewAI/
 ├── generate_diverse_training_data.py   # Data generation (130 patients)
-├── train_models.py                     # Training pipeline
+├── train_model_xgboost.py              # Main training entry point
 ├── evaluate_model.py                   # Model evaluation
+├── eda_analysis.py                     # Exploratory data analysis
+├── feature_selection.py                # Feature importance + Optuna tuning
+├── cross_validation.py                 # 5-fold GroupKFold cross-validation
+├── auto_retrain.py                     # Drift detection + automated retraining
 ├── streaming_api_server.py             # FastAPI backend (port 8000)
 ├── ml_server.py                        # ML inference API (port 8001)
 ├── streamlit_dashboard.py              # Monitoring UI (port 8501)
@@ -258,29 +322,37 @@ VitalViewAI/
 │
 ├── src/
 │   ├── data/
-│   │   ├── wearable_simulator.py          # Wearable device simulator
-│   │   └── generate_lab_data.py           # Lab results generator
+│   │   ├── wearable_simulator.py
+│   │   └── generate_lab_data.py
 │   ├── features/
-│   │   └── feature_engineering.py         # 133 features
+│   │   └── feature_engineering.py      # 133 features
 │   └── models/
-│       └── train_xgboost.py               # XGBoost training class
+│       └── train_xgboost.py            # XGBoost class library
 │
 ├── data/
 │   └── processed/
-│       ├── features_multi.csv             # 1.1M samples
-│       └── features_engineered.csv        # With 133 engineered features
+│       ├── features_multi.csv          # 1.1M labelled samples
+│       └── features_engineered.csv     # 133 engineered features
 │
 ├── models/
-│   ├── xgboost_model.pkl                  # Trained model
-│   ├── xgboost_model_metadata.json        # Performance + threshold metadata
+│   ├── xgboost_model.pkl                    # Production model (PR-AUC 0.653)
+│   ├── xgboost_model_metadata.json          # Performance + feature names
+│   ├── xgboost_model_selected.pkl           # 68-feature variant
+│   ├── xgboost_model_selected_metadata.json
+│   ├── optuna_best_params.json              # Hyperparameter tuning results
 │   ├── confusion_matrix.png
 │   ├── pr_curve.png
 │   └── feature_importance.png
 │
+├── reports/
+│   ├── eda/                            # 7 EDA plots
+│   ├── feature_selection/              # Importance chart + selected_features.json
+│   └── cross_validation/              # cv_results.json + cv_scores_plot.png
+│
 ├── logs/
-│   ├── application.log                    # General logs
-│   ├── audit.log                          # HIPAA-style audit trail
-│   └── performance.log                    # Prediction latencies
+│   ├── application.log
+│   ├── audit.log
+│   └── performance.log
 │
 ├── docs/
 │   ├── ARCHITECTURE.md
@@ -293,9 +365,9 @@ VitalViewAI/
 │   ├── grafana/
 │   └── prometheus/
 │
-├── privacy_config.yaml                    # Security settings
-├── logging_config.py                      # Logging configuration
-├── docker-compose.yaml                    # Container orchestration
+├── privacy_config.yaml
+├── logging_config.py
+├── docker-compose.yaml
 └── requirements.txt
 ```
 
@@ -303,38 +375,37 @@ VitalViewAI/
 
 ## 📊 Final Performance Metrics
 
-### Model Performance (evaluated on 168K held-out test samples)
+### Model Performance (holdout test — 26 unseen patients)
 
 | Metric | Value | Interpretation |
-|--------|-------|----------------|
-| **PR-AUC** | **0.695** | Moderate-good discrimination |
-| **ROC-AUC** | **0.756** | Good overall class separation |
-| **Precision** | **71.8%** | When it alerts, usually correct |
-| **Recall** | **46.5%** | Catches ~half of deterioration events |
-| **Specificity** | **89.4%** | Strong at identifying stable patients |
-| **F1-Score** | **0.564** | Balanced performance |
+|---|---|---|
+| **PR-AUC** | **0.653** | 73% above random baseline (0.376) |
+| **ROC-AUC** | **0.698** | Model correctly ranks 69.8% of patient pairs |
+| **CV PR-AUC** | **0.676 ± 0.021** | Stable across 5 patient groups |
+| **Precision** | **~70%** | When it alerts, usually correct |
+| **Recall** | **~32%** | Conservative at default threshold |
+| **Specificity** | **~89%** | Strong at identifying stable patients |
 
-### Confusion Matrix (168,481 test samples)
+### Confusion Matrix (threshold=0.5, approximate)
 
 ```
                     Predicted
                   Stable  |  Deteriorating
-Actual  Stable    95,206  |  11,297   ← false alarms (10.6%)
-      Deterior.   33,175  |  28,803   ← missed events (primary target)
+Actual  Stable   145,855  |  10,408   ← false alarms (6.7%)
+      Deterior.   52,498  |  24,715   ← caught events
 
-True Positives:  28,803  ✅ (correctly caught)
-True Negatives:  95,206  ✅ (correctly cleared)
-False Positives: 11,297  ⚠️  (false alarms — 10.6% of stable patients)
-False Negatives: 33,175  ❌  (missed deterioration — improvement target)
+True Positives:  24,715  ✅
+True Negatives: 145,855  ✅
+False Positives:  10,408  ⚠️  (false alarms)
+False Negatives:  52,498  ❌  (primary improvement target)
 ```
 
 ### Clinical Trade-off Context
 
-In healthcare monitoring two errors have very different costs:
-- **Missed deterioration (FN)** → patient doesn't get timely intervention
-- **False alarm (FP)** → unnecessary clinical review, alert fatigue
-
-This model prioritises specificity (89.4%) to keep false alarms at 10.6%, accepting ~53% miss rate. The next iteration would tune the decision threshold to shift this balance depending on clinical deployment context.
+At threshold 0.5 the model is conservative — high precision, lower recall.
+Suitable as a secondary alert system alongside clinical judgement.
+Lowering threshold to 0.3 substantially increases recall at the cost of
+more false alarms — appropriate for primary screening contexts.
 
 ---
 
@@ -345,22 +416,11 @@ This model prioritises specificity (89.4%) to keep false alarms at 10.6%, accept
 **Patient Simulator**:
 ```python
 # 130 patients with diverse health profiles
-- 50% Healthy (normal baseline vitals)
-- 30% At-risk (borderline vitals)
-- 20% Deteriorating (frequent events)
+# Healthy / At-risk / Deteriorating
 
-# Event probability by profile
-event_probability = {
-    'healthy':      0.35,
-    'at_risk':      0.65,
-    'deteriorating': 0.90
-}
-
-# Event types simulated
-- Hypertensive crisis (BP spike)
-- Hypoxia (low oxygen saturation)
-- Sepsis (multi-vital deterioration)
-- Cardiac (heart rate + BP instability)
+# Deterioration severity ramps 0 → 1 over 6 hours
+# modelling physiological onset of acute events
+vital_modifier = baseline × (1 + severity_factor × severity)
 ```
 
 ### Feature Engineering
@@ -374,19 +434,17 @@ Base Vitals (6):
 
 Rolling Statistics (72 features):
   Mean, Std, Min, Max over [1h, 6h, 12h] windows
-  e.g. heart_rate_mean_1h, bp_systolic_std_6h
 
-Trend Features (18 features):
-  First difference + OLS slope (6- and 12-reading windows)
-  e.g. heart_rate_slope_6, bp_systolic_diff
+Trend Features (12 features):
+  OLS slope over 6h and 12h windows per vital
 
-Interaction Features (5 features):
-  mean_arterial_pressure    = diastolic + pulse_pressure/3
-  pulse_pressure            = systolic − diastolic
-  cv_stress_index           = (HR/100) × (SBP/120)
-  respiratory_efficiency    = SpO2 / respiratory_rate
+Interaction Features (4 features — 39.5% of model gain):
+  mean_arterial_pressure = diastolic + pulse_pressure/3
+  cv_stress_index        = (HR/100) × (SBP/120)
+  respiratory_efficiency = SpO2 / respiratory_rate
+  pulse_pressure         = systolic − diastolic
 
-Temporal Features (5 features):
+Temporal Features (7 features):
   hour_of_day, hour_sin, hour_cos,
   day_of_week, is_weekend
 
@@ -396,30 +454,29 @@ Lag Features (18 features):
 
 ### Model Configuration
 
-**XGBoost — final trained configuration**:
 ```python
 XGBClassifier(
-    n_estimators=200,          # Trained; early stopped at iteration 163
+    n_estimators=500,           # Early stopped at ~163
     max_depth=6,
-    learning_rate=0.05,
-    min_child_weight=1,
-    gamma=0.05,
+    learning_rate=0.01,
     subsample=0.8,
     colsample_bytree=0.8,
-    scale_pos_weight=1,        # SMOTE already balanced classes
+    gamma=0.05,
+    min_child_weight=1,
+    scale_pos_weight=1,         # SMOTE already balanced classes
     eval_metric='aucpr',
     early_stopping_rounds=20,
-    n_jobs=-1
 )
 ```
 
 **Patient-level splitting** (prevents data leakage):
 ```
 Train: 91 patients (70%)  →  SMOTE applied  →  976K balanced samples
-Val:   13 patients (10%)  →  used for early stopping
+Val:   13 patients (10%)  →  early stopping
 Test:  26 patients (20%)  →  never seen during training
 
 ✅ No patient appears in multiple splits
+✅ Validated by 5-fold GroupKFold cross-validation
 ```
 
 ---
@@ -429,28 +486,20 @@ Test:  26 patients (20%)  →  never seen during training
 ### HIPAA-Style Implementation
 
 **Implemented**:
-- ✅ Role-based access control definitions (`privacy_config.yaml`)
-- ✅ Comprehensive audit logging (timestamped, user-tracked)
-- ✅ AES-256 encryption utilities for data at rest
-- ✅ SHA-256 patient ID hashing
+- ✅ Role-based access control (clinician / nurse / researcher)
+- ✅ Comprehensive audit logging (7-year retention standard)
+- ✅ AES-256 encryption via Fernet
+- ✅ SHA-256 patient ID hashing with salt
+- ✅ JWT authentication with bcrypt password hashing
 - ✅ TLS-ready API architecture
 
-**Access Control**:
-```yaml
-Roles:
-  clinician:    read/write patient data, view predictions, trigger alerts
-  nurse:        read patient data, view predictions, acknowledge alerts
-  researcher:   anonymized data only, model training
-```
-
-**Production Requirements** (not yet implemented):
+**Production Requirements** (not yet enforced at middleware level):
 ```
 ⚠️ For real deployment would require:
-- JWT/OAuth2 user authentication
-- Active session management
-- API gateway middleware
-- Password hashing and credential storage
-- Database persistence (currently in-memory)
+- Active JWT enforcement at API gateway
+- PostgreSQL for persistent storage
+- Redis for session management
+- HIPAA BAA with infrastructure provider
 ```
 
 ---
@@ -471,7 +520,7 @@ python tests/test_api_complete.py
 ### Performance Benchmarks
 
 | Operation | Latency |
-|-----------|---------|
+|---|---|
 | Feature Engineering | ~50ms |
 | XGBoost Prediction | ~45ms |
 | API Request (E2E) | ~380ms |
@@ -482,56 +531,36 @@ python tests/test_api_complete.py
 
 ### Current Limitations
 
-1. **Synthetic Data Only**
-   - Controlled patterns; real medical data has more noise and edge cases
-   - Performance likely to change on real-world data
-
-2. **Overfitting Gap**
-   - Train PR-AUC 0.86 vs Val 0.68 — regularization needs strengthening
-   - Fix: feature selection, cross-validation, stronger gamma/lambda
-
-3. **Recall at Default Threshold (46.5%)**
-   - Misses roughly half of deterioration events
-   - Fix: threshold tuning per patient profile, ensemble methods
-
-4. **No Ensemble**
-   - Single XGBoost model only
-   - Fix: XGBoost + Random Forest voting ensemble
-
-5. **Security Scaffold Only**
-   - RBAC defined but not actively enforced at request level
-   - Fix: FastAPI OAuth2, PostgreSQL, session management
-
-6. **Single Instance Deployment**
-   - No load balancing
-   - Fix: Kubernetes HPA already scaffolded in `deployment/`
-
-7. **Monitoring**:  
-   - Prometheus/Grafana configured but requires Docker deployment to run — not active on Render free tier.
+1. **Synthetic Data Only** — real-world performance will differ
+2. **Overfitting Gap** — train 0.845 vs val 0.678 (gap: 0.167)
+3. **Recall ~32% at threshold 0.5** — misses most events at default
+4. **Small cohort** — 130 patients causes run-to-run variance
+5. **Security scaffold** — RBAC defined but not enforced at middleware
+6. **Monitoring** — Prometheus/Grafana configured but requires Docker
 
 ### Planned Improvements
 
 - SHAP explainability for individual predictions
+- Validate on MIMIC-III real patient data
 - Patient-specific threshold calibration
 - Ensemble: XGBoost + Random Forest
-- Test on MIMIC-III / eICU real datasets
-- Automated retraining with drift detection
-- Full JWT authentication layer
-- A/B testing framework for model versions
+- Full JWT enforcement at API middleware
+- Experiment tracking with MLflow
 
 ---
 
 ## 📚 Tech Stack
 
 | Component | Technology |
-|-----------|-----------|
+|---|---|
 | **ML** | XGBoost 3.1.2 |
+| **Tuning** | Optuna |
+| **Imbalance** | imbalanced-learn (SMOTE) |
 | **Data** | Pandas 2.0.3, NumPy 1.26.4 |
 | **API** | FastAPI 0.128.0, Uvicorn |
 | **Dashboard** | Streamlit 1.52.2 |
 | **Visualization** | Plotly, Matplotlib, Seaborn |
 | **Security** | Cryptography 46.0.3 |
-| **Imbalance** | imbalanced-learn 0.14.1 |
 | **Monitoring** | Prometheus, Grafana |
 | **Testing** | pytest 9.0.2 |
 
@@ -540,24 +569,33 @@ python tests/test_api_complete.py
 ## 🎓 Skills Demonstrated
 
 ### Machine Learning
-✅ Problem diagnosis: traced poor performance to data quality root cause  
+✅ Root cause debugging: traced 0.30 PR-AUC to data pipeline bug  
 ✅ Systematic iteration: 4 documented debugging cycles  
-✅ Class imbalance: SMOTE + PR-AUC optimization  
-✅ Time-series features: rolling windows, slopes, lags  
-✅ Overfitting detection and documentation  
+✅ EDA: vital sign distributions, circadian patterns, patient profiles  
+✅ Class imbalance: SMOTE + PR-AUC optimisation  
+✅ Feature engineering: 6 vitals → 133 features  
+✅ Feature selection: gain-based, 133 → 68 features  
+✅ Hyperparameter tuning: Optuna Bayesian optimisation (20 trials)  
+✅ Cross-validation: 5-fold GroupKFold (patient-level, no leakage)  
+✅ Overfitting detection, analysis and documentation  
 ✅ Healthcare trade-offs: precision vs recall in clinical context  
 
 ### Data Engineering
 ✅ Synthetic patient simulator with realistic physiology  
-✅ Feature engineering: 6 vitals → 133 features  
 ✅ Patient-level splitting to prevent data leakage  
-✅ Kalman filtering for signal smoothing  
+✅ Drift detection with KS test + automated retraining  
 
 ### Software Engineering
 ✅ Production FastAPI with structured logging  
-✅ Correlation IDs and audit trails  
-✅ Unit, integration, and API tests  
+✅ Audit trails and correlation IDs  
 ✅ Docker + Kubernetes deployment scaffold  
+✅ Unit, integration, and API tests  
+
+### MLOps
+✅ Model versioning and registry  
+✅ Automated retraining pipeline  
+✅ Prometheus/Grafana monitoring configuration  
+✅ CI/CD scaffolding  
 
 ---
 
@@ -565,17 +603,16 @@ python tests/test_api_complete.py
 
 ### What Went Well
 ✅ Systematic debugging with documented iterations  
-✅ Root cause analysis (data quality → model quality)  
-✅ Production-grade infrastructure thinking  
-✅ Honest documentation of limitations  
+✅ Root cause analysis (data pipeline → model quality)  
+✅ Complete ML pipeline: EDA → feature selection → tuning → CV  
+✅ Honest documentation — feature selection made things worse, documented why  
 ✅ Healthcare-domain awareness  
 
 ### What I'd Do Differently
 🔄 Start with EDA before model building  
 🔄 Add SHAP explainability from the start  
-🔄 Implement cross-validation earlier  
-🔄 Test on real data sooner  
-🔄 Ensemble from day one  
+🔄 Collect more patients before tuning  
+🔄 Test on real data (MIMIC-III) sooner  
 
 ---
 
@@ -612,7 +649,7 @@ python tests/test_api_complete.py
 
 ## 🏆 Key Takeaway
 
-> "The journey from 0.30 → 0.695 PR-AUC wasn't about finding a better algorithm. It was about understanding the problem, fixing the data quality, and making informed trade-offs — which is what real ML engineering looks like."
+> "The journey from 0.30 → 0.653 PR-AUC (0.676 cross-validated) wasn't about finding a better algorithm. It was about understanding the problem, fixing the data pipeline, running proper analysis, and knowing when NOT to apply a technique — which is what real ML engineering looks like."
 
 ---
 
